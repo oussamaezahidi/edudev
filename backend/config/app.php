@@ -97,7 +97,7 @@ return [
 
     'cipher' => 'AES-256-CBC',
 
-    'key' => env('APP_KEY'),
+    'key' => 'base64:/KL5VuusKLuwBeChWxkuNXP9RSHItpWyFy4dOJGAkCY=',
 
     'previous_keys' => [
         ...array_filter(
