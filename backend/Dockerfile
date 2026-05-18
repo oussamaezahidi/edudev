@@ -1,7 +1,11 @@
 FROM dunglas/frankenphp:php8.3.31-bookworm
 
+# Get Composer from official image
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
 # Install pdo_mysql and other required extensions
 RUN install-php-extensions pdo_mysql pdo mysqli mbstring xml curl zip bcmath tokenizer ctype fileinfo
+
 
 WORKDIR /app
 
