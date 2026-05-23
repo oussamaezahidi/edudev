@@ -10,11 +10,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 
-#[Fillable(['name', 'role', 'is_active', 'email', 'phone', 'specialty', 'bio', 'avatar_disk', 'avatar_path', 'avatar_name', 'password'])]
+#[Fillable(['first_name', 'last_name', 'role', 'is_active', 'email', 'phone', 'specialty', 'bio', 'avatar_disk', 'avatar_path', 'avatar_name', 'password'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
     use HasFactory;
+
+    protected $appends = ['name', 'avatar_url'];
+
+    public function getNameAttribute(): string
+    {
+        return trim("{$this->first_name} {$this->last_name}");
+    }
 
     protected function casts(): array
     {

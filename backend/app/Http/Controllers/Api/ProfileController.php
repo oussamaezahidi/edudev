@@ -26,7 +26,8 @@ class ProfileController extends Controller
         $user = $request->user();
 
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
+            'first_name' => ['required', 'string', 'max:255'],
+            'last_name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
             'phone' => ['nullable', 'string', 'max:30'],
             'bio' => ['nullable', 'string'],
@@ -36,7 +37,8 @@ class ProfileController extends Controller
         ]);
 
         $attributes = [
-            'name' => trim($data['name']),
+            'first_name' => trim($data['first_name']),
+            'last_name' => trim($data['last_name']),
             'email' => strtolower(trim($data['email'])),
             'phone' => $data['phone'] ?? null,
             'bio' => $data['bio'] ?? null,
@@ -88,7 +90,7 @@ class ProfileController extends Controller
         return response()->json(['message' => 'Mot de passe mis à jour.']);
     }
 
-    public function avatar(Request $request, User $user): StreamedResponse
+    public function avatar(Request $request, User $user): \Symfony\Component\HttpFoundation\Response
     {
         abort_unless($request->user() && (int) $request->user()->id === (int) $user->id || $request->user()?->role === 'admin', 403);
         abort_unless($user->avatar_path, 404);
@@ -109,6 +111,8 @@ class ProfileController extends Controller
     {
         return [
             'id' => $user->id,
+            'first_name' => $user->first_name,
+            'last_name' => $user->last_name,
             'name' => $user->name,
             'email' => $user->email,
             'role' => $user->role,

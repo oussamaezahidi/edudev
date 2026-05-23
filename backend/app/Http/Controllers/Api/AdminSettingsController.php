@@ -110,9 +110,16 @@ class AdminSettingsController extends Controller
     private function forceLogout(Request $request): void
     {
         if (config('session.driver') === 'database') {
+            $sessionId = $request->hasSession() ? $request->session()->getId() : null;
             DB::table(config('session.table', 'sessions'))
-                ->when($request->session()->getId(), fn ($query, string $id) => $query->where('id', '!=', $id))
+                ->when($sessionId, fn ($query, string $id) => $query->where('id', '!=', $id))
                 ->delete();
         }
+
+        // Revoke all stateless API refresh tokens globally (except the current admin's if authenticated)
+        $user = $request->user();
+        \App\Models\ApiToken::query()
+            ->when($user, fn ($query) => $query->where('user_id', '!=', $user->id))
+            ->delete();
     }
 }

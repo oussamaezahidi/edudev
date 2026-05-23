@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getEffectiveDarkMode, setUserThemePreference } from '../themePreferences'
+import { client as axiosClient } from '../api/client'
 
 const sections = [
   { key: 'dashboard', label: 'Tableau de bord', icon: GridIcon },
@@ -54,7 +55,8 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
     if (specialty.includes('Mobile')) opt = 'Mobile'
     if (specialty.includes('RV/RA')) opt = 'RV/RA'
     return {
-      name: user?.name ?? '',
+      first_name: user?.first_name ?? '',
+      last_name: user?.last_name ?? '',
       email: user?.email ?? '',
       phone: user?.phone ?? '',
       bio: user?.bio ?? '',
@@ -209,7 +211,8 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
         if (specialty.includes('Mobile')) opt = 'Mobile'
         if (specialty.includes('RV/RA')) opt = 'RV/RA'
         setProfileForm({
-          name: profile.user.name ?? '',
+          first_name: profile.user.first_name ?? '',
+          last_name: profile.user.last_name ?? '',
           email: profile.user.email ?? '',
           phone: profile.user.phone ?? '',
           bio: profile.user.bio ?? '',
@@ -242,8 +245,7 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
   function resolveUrl(url) {
     if (!url) return ''
     if (url.startsWith('/api')) {
-      const apiBase = import.meta.env.VITE_API_URL || '/api'
-      return url.replace('/api', apiBase)
+      return url.replace('/api', '')
     }
     return url
   }
@@ -253,19 +255,15 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
 
     try {
       const url = resolveUrl(resource.document.preview_url)
-      const response = await fetch(url, {
-        credentials: 'include',
-        headers: { Accept: 'application/pdf' },
+      const response = await axiosClient.get(url, {
+        responseType: 'blob',
+        headers: { Accept: 'application/pdf' }
       })
-
-      if (!response.ok) throw new Error("Impossible d'ouvrir ce PDF pour le moment.")
-
-      const blob = await response.blob()
-      const urlBlob = URL.createObjectURL(blob)
+      const urlBlob = URL.createObjectURL(response.data)
       if (preview?.url) URL.revokeObjectURL(preview.url)
       setPreview({ title: resource.title, url: urlBlob })
     } catch (requestError) {
-      pushToast('error', requestError.message)
+      pushToast('error', "Impossible d'ouvrir ce PDF pour le moment.")
     }
   }
 
@@ -274,10 +272,10 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
 
     try {
       const url = resolveUrl(resource.document.download_url)
-      const response = await fetch(url, { credentials: 'include' })
-      if (!response.ok) throw new Error('Téléchargement impossible.')
-      const blob = await response.blob()
-      const objectUrl = URL.createObjectURL(blob)
+      const response = await axiosClient.get(url, {
+        responseType: 'blob'
+      })
+      const objectUrl = URL.createObjectURL(response.data)
       const anchor = document.createElement('a')
       anchor.href = objectUrl
       anchor.download = resource.document.name
@@ -287,7 +285,7 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
       // Auto refresh workspace to update download stats instantly!
       window.setTimeout(() => loadWorkspace({ silent: true }), 1000)
     } catch (requestError) {
-      pushToast('error', requestError.message)
+      pushToast('error', 'Téléchargement impossible.')
     }
   }
 
@@ -332,7 +330,8 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
 
     try {
       const body = new FormData()
-      body.append('name', profileForm.name)
+      body.append('first_name', profileForm.first_name)
+      body.append('last_name', profileForm.last_name)
       body.append('email', profileForm.email)
       body.append('phone', profileForm.phone || '')
       body.append('bio', profileForm.bio || '')
@@ -350,7 +349,8 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
         if (specialty.includes('Mobile')) opt = 'Mobile'
         if (specialty.includes('RV/RA')) opt = 'RV/RA'
         setProfileForm({
-          name: response.user.name ?? '',
+          first_name: response.user.first_name ?? '',
+          last_name: response.user.last_name ?? '',
           email: response.user.email ?? '',
           phone: response.user.phone ?? '',
           bio: response.user.bio ?? '',
@@ -419,7 +419,7 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
               <div className="flex items-center gap-3">
                 <Avatar user={currentUser} size="h-14 w-14" />
                 <div className="min-w-0">
-                  <h2 className="truncate text-lg font-semibold">{currentUser?.name}</h2>
+           <h2 className="truncate text-lg font-semibold whitespace-normal">{currentUser?.first_name + " " + currentUser?.last_name}</h2>
                   <p className="truncate text-xs text-orange-50">{currentUser?.email}</p>
                 </div>
               </div>
@@ -599,14 +599,26 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
                       <form className="space-y-5" onSubmit={submitProfile}>
                         <div className="grid gap-4 md:grid-cols-2">
                           <InputField
-                            label="Nom complet"
-                            value={profileForm.name}
-                            error={profileErrors.name}
+                            label="Prénom"
+                            value={profileForm.first_name}
+                            error={profileErrors.first_name}
                             onChange={(value) => {
-                              setProfileForm((previous) => ({ ...previous, name: value }))
-                              setProfileErrors((previous) => ({ ...previous, name: '' }))
+                              setProfileForm((previous) => ({ ...previous, first_name: value }))
+                              setProfileErrors((previous) => ({ ...previous, first_name: '' }))
                             }}
                           />
+                          <InputField
+                            label="Nom"
+                            value={profileForm.last_name}
+                            error={profileErrors.last_name}
+                            onChange={(value) => {
+                              setProfileForm((previous) => ({ ...previous, last_name: value }))
+                              setProfileErrors((previous) => ({ ...previous, last_name: '' }))
+                            }}
+                          />
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-2">
                           <InputField
                             label="Adresse email"
                             type="email"
@@ -617,9 +629,6 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
                               setProfileErrors((previous) => ({ ...previous, email: '' }))
                             }}
                           />
-                        </div>
-
-                        <div className="grid gap-4 md:grid-cols-2">
                           <InputField
                             label="Téléphone"
                             type="tel"
@@ -628,20 +637,21 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
                               setProfileForm((previous) => ({ ...previous, phone: value }))
                             }}
                           />
-                          <label className="block">
-                            <span className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200">Année d'études</span>
-                            <select
-                              value={profileForm.year_level}
-                              onChange={(event) => {
-                                setProfileForm((previous) => ({ ...previous, year_level: event.target.value }))
-                              }}
-                              className="h-12 w-full rounded-2xl border border-slate-300 bg-white px-4 text-sm text-slate-900 shadow-sm outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:ring-orange-500/15"
-                            >
-                              <option value="1">1ère année</option>
-                              <option value="2">2ème année</option>
-                            </select>
-                          </label>
                         </div>
+
+                        <label className="block">
+                          <span className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-200">Année d'études</span>
+                          <select
+                            value={profileForm.year_level}
+                            onChange={(event) => {
+                              setProfileForm((previous) => ({ ...previous, year_level: event.target.value }))
+                            }}
+                            className="h-12 w-full rounded-2xl border border-slate-300 bg-white px-4 text-sm text-slate-900 shadow-sm outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100 dark:border-slate-600 dark:bg-slate-900 dark:text-white dark:focus:ring-orange-500/15"
+                          >
+                            <option value="1">1ère année</option>
+                            <option value="2">2ème année</option>
+                          </select>
+                        </label>
 
                         {profileForm.year_level === '2' && (
                           <label className="block">
@@ -694,7 +704,8 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
                             if (specialty.includes('Mobile')) opt = 'Mobile'
                             if (specialty.includes('RV/RA')) opt = 'RV/RA'
                             setProfileForm({
-                              name: currentUser?.name ?? '',
+                              first_name: currentUser?.first_name ?? '',
+                              last_name: currentUser?.last_name ?? '',
                               email: currentUser?.email ?? '',
                               phone: currentUser?.phone ?? '',
                               bio: currentUser?.bio ?? '',
@@ -1427,8 +1438,9 @@ function filterModules(modules, filters, resources) {
 
 function validateProfile(form) {
   const errors = {}
-  if (!form.name.trim()) errors.name = 'Le nom complet est obligatoire.'
-  if (!form.email.trim()) {
+  if (!form.first_name || !form.first_name.trim()) errors.first_name = 'Le prénom est obligatoire.'
+  if (!form.last_name || !form.last_name.trim()) errors.last_name = 'Le nom est obligatoire.'
+  if (!form.email || !form.email.trim()) {
     errors.email = "L'adresse email est obligatoire."
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
     errors.email = 'Veuillez saisir une adresse email valide.'

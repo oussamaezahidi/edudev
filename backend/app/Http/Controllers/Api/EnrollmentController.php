@@ -19,7 +19,7 @@ class EnrollmentController extends Controller
 
         return response()->json([
             'message' => 'Enrollment created.',
-            'course' => $course->load(['module:id,title', 'trainer:id,name']),
+            'course' => $course->load(['module:id,title', 'trainer:id,first_name,last_name']),
         ]);
     }
 }

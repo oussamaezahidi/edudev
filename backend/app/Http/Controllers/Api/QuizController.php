@@ -14,7 +14,7 @@ class QuizController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Quiz::query()->with(['course:id,title', 'trainer:id,name', 'questions']);
+        $query = Quiz::query()->with(['course:id,title', 'trainer:id,first_name,last_name', 'questions']);
 
         if ($request->filled('course_id')) {
             $query->where('course_id', $request->integer('course_id'));
@@ -54,14 +54,14 @@ class QuizController extends Controller
 
         $quiz->questions()->createMany($data['questions']);
 
-        return response()->json($quiz->load(['course:id,title', 'trainer:id,name', 'questions']), 201);
+        return response()->json($quiz->load(['course:id,title', 'trainer:id,first_name,last_name', 'questions']), 201);
     }
 
     public function show(Request $request, Quiz $quiz): JsonResponse
     {
         $this->authorizeQuizViewer($request, $quiz);
 
-        return response()->json($quiz->load(['course:id,title', 'trainer:id,name', 'questions']));
+        return response()->json($quiz->load(['course:id,title', 'trainer:id,first_name,last_name', 'questions']));
     }
 
     public function update(Request $request, Quiz $quiz): JsonResponse
@@ -94,7 +94,7 @@ class QuizController extends Controller
         $quiz->questions()->delete();
         $quiz->questions()->createMany($data['questions']);
 
-        return response()->json($quiz->load(['course:id,title', 'trainer:id,name', 'questions']));
+        return response()->json($quiz->load(['course:id,title', 'trainer:id,first_name,last_name', 'questions']));
     }
 
     public function destroy(Request $request, Quiz $quiz): JsonResponse

@@ -16,7 +16,8 @@ class TrainerController extends Controller
         $trainers = User::query()
             ->where('role', 'trainer')
             ->with(['modules:id,title'])
-            ->orderBy('name')
+            ->orderBy('first_name')
+            ->orderBy('last_name')
             ->get();
 
         return response()->json($trainers);
@@ -35,8 +36,13 @@ class TrainerController extends Controller
             'module_ids.*' => ['integer', 'exists:modules,id'],
         ]);
 
+        $nameParts = explode(' ', trim($data['name']), 2);
+        $firstName = $nameParts[0] ?? '';
+        $lastName = $nameParts[1] ?? '';
+
         $trainer = User::query()->create([
-            'name' => $data['name'],
+            'first_name' => $firstName,
+            'last_name' => $lastName,
             'email' => $data['email'],
             'password' => Hash::make($data['password'] ?? 'password'),
             'role' => 'trainer',
@@ -79,8 +85,13 @@ class TrainerController extends Controller
             'module_ids.*' => ['integer', 'exists:modules,id'],
         ]);
 
+        $nameParts = explode(' ', trim($data['name']), 2);
+        $firstName = $nameParts[0] ?? '';
+        $lastName = $nameParts[1] ?? '';
+
         $trainer->update([
-            'name' => $data['name'],
+            'first_name' => $firstName,
+            'last_name' => $lastName,
             'email' => $data['email'],
             'phone' => $data['phone'] ?? null,
             'specialty' => null,

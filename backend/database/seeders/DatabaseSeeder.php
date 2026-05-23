@@ -29,7 +29,8 @@ class DatabaseSeeder extends Seeder
         $admin = User::query()->updateOrCreate(
             ['email' => 'admin@edudev.ma'],
             [
-                'name' => 'Admin EduDev',
+                'first_name' => 'Admin',
+                'last_name' => 'EduDev',
                 'role' => 'admin',
                 'password' => Hash::make('password'),
                 'specialty' => 'Administration',
@@ -39,19 +40,22 @@ class DatabaseSeeder extends Seeder
 
         $trainers = collect([
             [
-                'name' => 'Omar Frontend',
+                'first_name' => 'Omar',
+                'last_name' => 'Frontend',
                 'email' => 'omar@edudev.ma',
                 'specialty' => 'Développement web et JavaScript',
                 'bio' => 'Anime les modules de développement web, JavaScript et interfaces modernes.',
             ],
             [
-                'name' => 'Salma Backend',
+                'first_name' => 'Salma',
+                'last_name' => 'Backend',
                 'email' => 'salma@edudev.ma',
                 'specialty' => 'Back-end, données et sécurité',
                 'bio' => 'Prend en charge les cours back-end, bases de données et contrôles.',
             ],
             [
-                'name' => 'Youssef Agile',
+                'first_name' => 'Youssef',
+                'last_name' => 'Agile',
                 'email' => 'youssef@edudev.ma',
                 'specialty' => 'Agilité et cloud native',
                 'bio' => 'Encadre les ateliers agiles, cloud native et intégration projet.',
@@ -68,7 +72,8 @@ class DatabaseSeeder extends Seeder
         $trainee = User::query()->updateOrCreate(
             ['email' => 'stagiaire@edudev.ma'],
             [
-                'name' => 'Stagiaire Demo',
+                'first_name' => 'Stagiaire',
+                'last_name' => 'Demo',
                 'role' => 'trainee',
                 'password' => Hash::make('password'),
                 'specialty' => 'Développement digital - 1ère année',

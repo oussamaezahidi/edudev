@@ -17,7 +17,7 @@ class TrainerModuleController extends Controller
                 'courses' => fn ($query) => $query
                     ->where('trainer_id', $trainer->id)
                     ->withCount(['practicalWorks', 'assessments'])
-                    ->with('trainer:id,name'),
+                    ->with('trainer:id,first_name,last_name'),
             ])
             ->orderBy('title')
             ->get();

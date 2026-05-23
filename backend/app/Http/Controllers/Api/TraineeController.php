@@ -16,7 +16,8 @@ class TraineeController extends Controller
             User::query()
                 ->where('role', 'trainee')
                 ->with(['enrolledCourses:id,title'])
-                ->orderBy('name')
+                ->orderBy('first_name')
+                ->orderBy('last_name')
                 ->get()
         );
     }
@@ -35,8 +36,13 @@ class TraineeController extends Controller
             'course_ids.*' => ['integer', 'exists:courses,id'],
         ]);
 
+        $nameParts = explode(' ', trim($data['name']), 2);
+        $firstName = $nameParts[0] ?? '';
+        $lastName = $nameParts[1] ?? '';
+
         $trainee->update([
-            'name' => $data['name'],
+            'first_name' => $firstName,
+            'last_name' => $lastName,
             'email' => $data['email'],
             'phone' => $data['phone'] ?? null,
             'specialty' => $data['specialty'] ?? null,

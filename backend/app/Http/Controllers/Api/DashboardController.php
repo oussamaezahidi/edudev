@@ -45,7 +45,7 @@ class DashboardController extends Controller
                 'users' => User::query()->latest()->take(5)->get(),
                 'trainers' => User::query()->where('role', 'trainer')->latest()->take(5)->get(),
                 'modules' => Module::query()->latest()->take(5)->get(),
-                'courses' => Course::query()->with(['module:id,title', 'trainer:id,name'])->latest()->take(5)->get(),
+                'courses' => Course::query()->with(['module:id,title', 'trainer:id,first_name,last_name'])->latest()->take(5)->get(),
             ],
         ];
     }
@@ -77,7 +77,7 @@ class DashboardController extends Controller
     {
         $trainee->load([
             'enrolledCourses.module:id,title',
-            'enrolledCourses.trainer:id,name',
+            'enrolledCourses.trainer:id,first_name,last_name',
         ]);
 
         $courseIds = $trainee->enrolledCourses->pluck('id');
@@ -98,17 +98,17 @@ class DashboardController extends Controller
                 'assessments' => Assessment::query()->whereIn('course_id', $courseIds)->count(),
             ],
             'certificates' => Certificate::query()
-                ->with(['course:id,title', 'course.trainer:id,name'])
+                ->with(['course:id,title', 'course.trainer:id,first_name,last_name'])
                 ->where('user_id', $trainee->id)
                 ->latest('issued_at')
                 ->get(),
             'practicalWorks' => PracticalWork::query()
-                ->with(['course:id,title', 'trainer:id,name'])
+                ->with(['course:id,title', 'trainer:id,first_name,last_name'])
                 ->whereIn('course_id', $courseIds)
                 ->orderBy('due_at')
                 ->get(),
             'assessments' => Assessment::query()
-                ->with(['course:id,title', 'module:id,title', 'trainer:id,name'])
+                ->with(['course:id,title', 'module:id,title', 'trainer:id,first_name,last_name'])
                 ->where(function ($query) use ($courseIds, $moduleIds): void {
                     $query
                         ->whereIn('course_id', $courseIds)

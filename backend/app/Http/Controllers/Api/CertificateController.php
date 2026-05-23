@@ -15,7 +15,7 @@ class CertificateController extends Controller
 
         return response()->json(
             Certificate::query()
-                ->with(['course:id,title', 'course.module:id,title', 'course.trainer:id,name'])
+                ->with(['course:id,title', 'course.module:id,title', 'course.trainer:id,first_name,last_name'])
                 ->where('user_id', $request->user()->id)
                 ->latest('issued_at')
                 ->get()

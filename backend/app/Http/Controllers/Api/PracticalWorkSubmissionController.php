@@ -21,7 +21,7 @@ class PracticalWorkSubmissionController extends Controller
 
         return response()->json(
             $practicalWork->submissions()
-                ->with('trainee:id,name,email,specialty')
+                ->with('trainee:id,first_name,last_name,email,specialty')
                 ->get()
                 ->map(fn (PracticalWorkSubmission $submission) => $this->serializeSubmission($submission))
         );
@@ -29,35 +29,74 @@ class PracticalWorkSubmissionController extends Controller
 
     public function store(PracticalWorkSubmissionRequest $request, PracticalWork $practicalWork): JsonResponse
     {
-        $file = $request->file('submission');
-        $existing = $practicalWork->submissions()->where('trainee_id', $request->user()->id)->first();
-
-        if ($existing) {
-            Storage::disk($existing->file_disk)->delete($existing->file_path);
-        }
-
-        $fileName = Str::uuid()->toString().'.'.$file->extension();
-        $path = $file->storeAs("practical-submissions/{$practicalWork->id}", $fileName, 'local');
-
-        $submission = PracticalWorkSubmission::query()->updateOrCreate(
-            [
+        try {
+            $file = $request->file('file');
+            \Log::info('Practical Work Submission PDF Upload initiated', [
+                'trainee_id' => $request->user()?->id,
                 'practical_work_id' => $practicalWork->id,
-                'trainee_id' => $request->user()->id,
-            ],
-            [
-                'file_disk' => 'local',
-                'file_path' => $path,
-                'original_name' => $file->getClientOriginalName(),
-                'mime_type' => $file->getClientMimeType(),
-                'file_size' => $file->getSize(),
-                'submitted_at' => now(),
-                'score' => null,
-                'comment' => null,
-                'corrected_at' => null,
-            ]
-        );
+                'name' => $file->getClientOriginalName(),
+                'size' => $file->getSize(),
+                'mime' => $file->getClientMimeType()
+            ]);
 
-        return response()->json($this->serializeSubmission($submission->load('trainee:id,name,email,specialty')), 201);
+            $existing = $practicalWork->submissions()->where('trainee_id', $request->user()->id)->first();
+
+            if ($existing) {
+                try {
+                    $existingFullPath = storage_path('app/public/' . $existing->file_path);
+                    if (file_exists($existingFullPath)) {
+                        unlink($existingFullPath);
+                    }
+                } catch (\Exception $deleteError) {
+                    \Log::warning('Could not delete old submission file', ['error' => $deleteError->getMessage()]);
+                }
+            }
+
+            $publicUploadsDir = storage_path('app/public/uploads');
+            if (!file_exists($publicUploadsDir)) {
+                mkdir($publicUploadsDir, 0755, true);
+                \Log::info('Created uploads directory automatically in public disk root');
+            }
+
+            $path = $file->store('uploads', 'public');
+            $fullPath = storage_path('app/public/' . $path);
+            $fileExists = file_exists($fullPath);
+
+            \Log::info('Practical Work Submission PDF Upload completed successfully', [
+                'generated_path' => $path,
+                'absolute_path' => $fullPath,
+                'file_exists_on_disk' => $fileExists,
+                'saved_file_size' => $fileExists ? filesize($fullPath) : 0
+            ]);
+
+            $submission = PracticalWorkSubmission::query()->updateOrCreate(
+                [
+                    'practical_work_id' => $practicalWork->id,
+                    'trainee_id' => $request->user()->id,
+                ],
+                [
+                    'file_disk' => 'public',
+                    'file_path' => $path,
+                    'original_name' => $file->getClientOriginalName(),
+                    'mime_type' => $file->getClientMimeType(),
+                    'file_size' => $file->getSize(),
+                    'submitted_at' => now(),
+                    'score' => null,
+                    'comment' => null,
+                    'corrected_at' => null,
+                ]
+            );
+
+            return response()->json($this->serializeSubmission($submission->load('trainee:id,first_name,last_name,email,specialty')), 201);
+        } catch (\Exception $e) {
+            \Log::error('Practical Work Submission PDF Upload failed', [
+                'trainee_id' => $request->user()?->id,
+                'practical_work_id' => $practicalWork->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
+        }
     }
 
     public function update(
@@ -74,32 +113,32 @@ class PracticalWorkSubmissionController extends Controller
             'corrected_at' => now(),
         ]);
 
-        return response()->json($this->serializeSubmission($submission->load('trainee:id,name,email,specialty')));
+        return response()->json($this->serializeSubmission($submission->load('trainee:id,first_name,last_name,email,specialty')));
     }
 
-    public function preview(Request $request, PracticalWorkSubmission $submission): StreamedResponse
+    public function preview(Request $request, PracticalWorkSubmission $submission): \Symfony\Component\HttpFoundation\Response
     {
         $this->authorizeSubmissionAccess($request, $submission);
 
-        return Storage::disk($submission->file_disk)->response(
-            $submission->file_path,
-            $submission->original_name,
-            [
-                'Content-Type' => $submission->mime_type,
-                'Content-Disposition' => 'inline; filename="'.$submission->original_name.'"',
-            ]
-        );
+        $path = Storage::disk($submission->file_disk)->path($submission->file_path);
+        abort_unless(file_exists($path), 404, "Le fichier demandé n'existe pas.");
+
+        return response()->file($path, [
+            'Content-Type' => $submission->mime_type ?: 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.$submission->original_name.'"',
+        ]);
     }
 
-    public function download(Request $request, PracticalWorkSubmission $submission): StreamedResponse
+    public function download(Request $request, PracticalWorkSubmission $submission): \Symfony\Component\HttpFoundation\Response
     {
         $this->authorizeSubmissionAccess($request, $submission);
 
-        return Storage::disk($submission->file_disk)->download(
-            $submission->file_path,
-            $submission->original_name,
-            ['Content-Type' => $submission->mime_type]
-        );
+        $path = Storage::disk($submission->file_disk)->path($submission->file_path);
+        abort_unless(file_exists($path), 404, "Le fichier demandé n'existe pas.");
+
+        return response()->download($path, $submission->original_name, [
+            'Content-Type' => $submission->mime_type ?: 'application/pdf',
+        ]);
     }
 
     private function serializeSubmission(PracticalWorkSubmission $submission): array
@@ -132,6 +171,10 @@ class PracticalWorkSubmissionController extends Controller
     private function authorizeSubmissionAccess(Request $request, PracticalWorkSubmission $submission): void
     {
         $user = $request->user();
+
+        if ($user?->role === 'admin') {
+            return;
+        }
 
         if ($user?->role === 'trainer' && (int) $submission->practicalWork()->value('trainer_id') === (int) $user->id) {
             return;

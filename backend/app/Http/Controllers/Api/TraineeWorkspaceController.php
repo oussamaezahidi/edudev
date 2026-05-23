@@ -14,21 +14,35 @@ class TraineeWorkspaceController extends Controller
 {
     private function getDownloadStats(string $type, int $id, int $yearLevel, ?string $option = null): array
     {
-        $traineeQuery = \App\Models\User::query()
-            ->where('role', 'trainee')
-            ->where('specialty', $yearLevel === 2 ? 'like' : 'like', $yearLevel === 2 ? '%2%' : '%1%');
+        static $traineeCountCache = [];
+        static $downloadCountsCache = null;
 
-        if ($yearLevel === 2 && $option) {
-            $traineeQuery->where('specialty', 'like', "%{$option}%");
+        $cacheKey = "{$yearLevel}-" . ($option ?: 'null');
+
+        if (!isset($traineeCountCache[$cacheKey])) {
+            $traineeQuery = \App\Models\User::query()
+                ->where('role', 'trainee')
+                ->where('specialty', $yearLevel === 2 ? 'like' : 'like', $yearLevel === 2 ? '%2%' : '%1%');
+
+            if ($yearLevel === 2 && $option) {
+                $traineeQuery->where('specialty', 'like', "%{$option}%");
+            }
+
+            $traineeCountCache[$cacheKey] = $traineeQuery->count();
         }
 
-        $totalTrainees = $traineeQuery->count();
+        $totalTrainees = $traineeCountCache[$cacheKey];
 
-        $downloadedCount = \DB::table('document_downloads')
-            ->where('downloadable_type', $type)
-            ->where('downloadable_id', $id)
-            ->count();
+        if ($downloadCountsCache === null) {
+            $downloadCountsCache = \DB::table('document_downloads')
+                ->where('downloadable_type', $type)
+                ->selectRaw('downloadable_id, count(*) as count')
+                ->groupBy('downloadable_id')
+                ->pluck('count', 'downloadable_id')
+                ->toArray();
+        }
 
+        $downloadedCount = $downloadCountsCache[$id] ?? 0;
         $percentage = $totalTrainees > 0 ? (int) round(($downloadedCount / $totalTrainees) * 100) : 0;
 
         return [
@@ -72,8 +86,8 @@ class TraineeWorkspaceController extends Controller
                       ->orWhere('option', $option);
                 })
                 ->with([
-                    'courses.trainer:id,name',
-                    'trainers:id,name,email,specialty',
+                    'courses.trainer:id,first_name,last_name',
+                    'trainers:id,first_name,last_name,email,specialty',
                 ])
                 ->withCount(['courses', 'assessments'])
                 ->orderBy('title')
@@ -118,7 +132,7 @@ class TraineeWorkspaceController extends Controller
                                   ->orWhere('option', $option);
                             });
                 })
-                ->with(['course:id,title,module_id', 'course.module:id,title', 'trainer:id,name'])
+                ->with(['course:id,title,module_id', 'course.module:id,title', 'trainer:id,first_name,last_name'])
                 ->orderBy('due_at')
                 ->get()
                 ->map(fn (PracticalWork $work) => [
@@ -168,7 +182,7 @@ class TraineeWorkspaceController extends Controller
                                   ->orWhere('option', $option);
                             });
                 })
-                ->with(['module:id,title', 'course:id,title,module_id', 'trainer:id,name'])
+                ->with(['module:id,title', 'course:id,title,module_id', 'trainer:id,first_name,last_name'])
                 ->orderBy('scheduled_at')
                 ->get()
                 ->map(fn (Assessment $assessment) => [

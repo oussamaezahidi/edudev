@@ -12,8 +12,8 @@ class CatalogController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = Course::query()
-            ->withCount(['trainees', 'lessons', 'modules'])
-            ->with(['module:id,title', 'trainer:id,name,specialty']);
+            ->withCount(['trainees', 'lessons'])
+            ->with(['module:id,title', 'trainer:id,first_name,last_name,specialty']);
 
         if ($request->filled('module_id')) {
             $query->where('module_id', $request->integer('module_id'));
@@ -30,7 +30,7 @@ class CatalogController extends Controller
     {
         return response()->json($course->load([
             'module:id,title,description',
-            'trainer:id,name,specialty,bio',
+            'trainer:id,first_name,last_name,specialty,bio',
             'lessons:id,course_id,title,type,position,duration_minutes,published',
             'quizzes.questions:id,quiz_id,prompt,option_a,option_b,option_c,option_d',
         ])->loadCount('trainees'));

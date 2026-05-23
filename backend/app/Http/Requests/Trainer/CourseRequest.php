@@ -46,11 +46,11 @@ class CourseRequest extends FormRequest
             'description' => ['nullable', 'string'],
             'level' => ['required', Rule::in(['beginner', 'intermediate', 'advanced'])],
             'duration_hours' => ['required', 'integer', 'min:1'],
-            'document' => [
+            'file' => [
                 $this->isMethod('post') ? 'required' : 'nullable',
                 'file',
-                'mimetypes:application/pdf',
-                'max:512000',
+                'mimes:pdf',
+                'max:20480',
             ],
         ];
     }

@@ -41,7 +41,7 @@ class TrainerWorkspaceApiTest extends TestCase
 
     public function test_a_trainer_can_upload_a_pdf_course_inside_an_assigned_module(): void
     {
-        Storage::fake('local');
+        Storage::fake('public');
 
         $trainer = User::factory()->create(['role' => 'trainer']);
         $module = Module::query()->create([
@@ -57,7 +57,7 @@ class TrainerWorkspaceApiTest extends TestCase
             'description' => 'Trainer PDF upload test.',
             'level' => 'advanced',
             'duration_hours' => 10,
-            'document' => UploadedFile::fake()->create('secure-course.pdf', 120, 'application/pdf'),
+            'file' => UploadedFile::fake()->create('secure-course.pdf', 120, 'application/pdf'),
         ]);
 
         $response
@@ -69,6 +69,6 @@ class TrainerWorkspaceApiTest extends TestCase
         $course = Course::query()->firstOrFail();
 
         $this->assertSame($trainer->id, $course->trainer_id);
-        Storage::disk('local')->assertExists($course->document_path);
+        Storage::disk('public')->assertExists($course->document_path);
     }
 }

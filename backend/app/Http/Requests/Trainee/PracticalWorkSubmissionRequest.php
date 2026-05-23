@@ -25,11 +25,11 @@ class PracticalWorkSubmissionRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'submission' => [
+            'file' => [
                 'required',
                 'file',
-                'mimes:pdf,doc,docx,ppt,pptx,xls,xlsx,zip,rar,txt,jpg,jpeg,png',
-                'max:30720',
+                'mimes:pdf',
+                'max:20480',
             ],
         ];
     }

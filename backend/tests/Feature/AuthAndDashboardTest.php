@@ -15,10 +15,11 @@ class AuthAndDashboardTest extends TestCase
     public function test_a_trainee_can_register_and_access_their_dashboard(): void
     {
         $registerResponse = $this->postJson('/api/register', [
-            'name' => 'Stagiaire Test',
+            'first_name' => 'Stagiaire',
+            'last_name' => 'Test',
             'email' => 'stagiaire@test.ma',
-            'password' => 'password123',
-            'password_confirmation' => 'password123',
+            'password' => 'SecurePass123!',
+            'password_confirmation' => 'SecurePass123!',
         ]);
 
         $registerResponse
@@ -26,7 +27,12 @@ class AuthAndDashboardTest extends TestCase
             ->assertJsonPath('user.role', 'trainee')
             ->assertJsonStructure(['message', 'redirect_to', 'user']);
 
-        $this->assertAuthenticated();
+        $user = User::query()->where('email', 'stagiaire@test.ma')->firstOrFail();
+
+        // Simulate acting as the trainee for stateless dashboard access
+        $this->actingAs($user);
+
+        $this->assertAuthenticatedAs($user);
 
         $dashboardResponse = $this->getJson('/api/dashboard');
 
@@ -58,7 +64,9 @@ class AuthAndDashboardTest extends TestCase
             'password' => 'password',
         ]);
 
-        $loginResponse->assertOk()->assertJsonStructure(['message', 'redirect_to', 'user']);
+        $loginResponse->assertOk()->assertJsonStructure(['message', 'access_token', 'user']);
+
+        $this->actingAs($admin);
 
         $this->assertAuthenticatedAs($admin);
 
@@ -70,10 +78,11 @@ class AuthAndDashboardTest extends TestCase
     public function test_a_trainee_can_register_for_first_year(): void
     {
         $registerResponse = $this->postJson('/api/register', [
-            'name' => 'Stagiaire 1er Annee',
+            'first_name' => 'Stagiaire',
+            'last_name' => '1er Annee',
             'email' => 'stagiaire1@test.ma',
-            'password' => 'password123',
-            'password_confirmation' => 'password123',
+            'password' => 'SecurePass123!',
+            'password_confirmation' => 'SecurePass123!',
             'year_level' => '1',
         ]);
 
@@ -87,10 +96,11 @@ class AuthAndDashboardTest extends TestCase
     public function test_a_trainee_can_register_for_second_year(): void
     {
         $registerResponse = $this->postJson('/api/register', [
-            'name' => 'Stagiaire 2eme Annee',
+            'first_name' => 'Stagiaire',
+            'last_name' => '2eme Annee',
             'email' => 'stagiaire2@test.ma',
-            'password' => 'password123',
-            'password_confirmation' => 'password123',
+            'password' => 'SecurePass123!',
+            'password_confirmation' => 'SecurePass123!',
             'year_level' => '2',
         ]);
 
@@ -104,10 +114,11 @@ class AuthAndDashboardTest extends TestCase
     public function test_a_trainee_can_register_for_second_year_with_custom_option(): void
     {
         $registerResponse = $this->postJson('/api/register', [
-            'name' => 'Stagiaire Mobile',
+            'first_name' => 'Stagiaire',
+            'last_name' => 'Mobile',
             'email' => 'stagiaire.mobile@test.ma',
-            'password' => 'password123',
-            'password_confirmation' => 'password123',
+            'password' => 'SecurePass123!',
+            'password_confirmation' => 'SecurePass123!',
             'year_level' => '2',
             'option' => 'Mobile',
         ]);
@@ -132,7 +143,8 @@ class AuthAndDashboardTest extends TestCase
         $this->actingAs($trainee);
 
         $response = $this->postJson('/api/profile', [
-            'name' => 'Stagiaire Profile Updated',
+            'first_name' => 'Stagiaire',
+            'last_name' => 'Profile Updated',
             'email' => 'stagiaire.profile.new@test.ma',
             'phone' => '0611111111',
             'bio' => 'Nouvelle biographie de test',
@@ -144,7 +156,8 @@ class AuthAndDashboardTest extends TestCase
 
         $this->assertDatabaseHas('users', [
             'id' => $trainee->id,
-            'name' => 'Stagiaire Profile Updated',
+            'first_name' => 'Stagiaire',
+            'last_name' => 'Profile Updated',
             'email' => 'stagiaire.profile.new@test.ma',
             'phone' => '0611111111',
             'bio' => 'Nouvelle biographie de test',

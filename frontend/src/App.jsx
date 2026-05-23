@@ -4,6 +4,7 @@ import AdminWorkspace from './admin/AdminWorkspace'
 import TrainerWorkspace from './trainer/TrainerWorkspace'
 import TraineeWorkspace from './trainee/TraineeWorkspace'
 import { getEffectiveDarkMode } from './themePreferences'
+import { api as axiosApi, setAccessToken, getAccessToken, setRefreshToken, getRefreshToken } from './api/client'
 
 const API_BASE = resolveApiBase()
 const AUTH_USER_KEY = 'edudev.auth.user'
@@ -25,7 +26,8 @@ const emptyResources = {
 }
 
 const emptyRegister = {
-  name: '',
+  first_name: '',
+  last_name: '',
   email: '',
   phone: '',
   filiere: 'Développement Digital',
@@ -143,7 +145,40 @@ function App() {
   }, [user])
 
   useEffect(() => {
+    // Initialize tokens from localStorage if present
+    const rToken = getRefreshToken()
+    if (rToken) {
+      setRefreshToken(rToken)
+    }
+    const token = window.localStorage.getItem('token')
+    if (token) {
+      setAccessToken(token)
+    }
     bootstrap()
+  }, [])
+
+  useEffect(() => {
+    function handleStorageChange(event) {
+      if (event.key === AUTH_USER_KEY || event.key === 'edudev.auth.logout_trigger') {
+        const storedUser = readStoredUser()
+        if (!storedUser) {
+          setAccessToken(null)
+          setRefreshToken(null)
+          setUser(null)
+          setDashboard(null)
+          setResources(emptyResources)
+          setFeedback('Session fermée depuis un autre onglet.')
+          window.history.replaceState(null, '', '/login')
+        } else {
+          setUser(storedUser)
+          const rToken = getRefreshToken()
+          if (rToken) setRefreshToken(rToken)
+          loadRoleData(storedUser)
+        }
+      }
+    }
+    window.addEventListener('storage', handleStorageChange)
+    return () => window.removeEventListener('storage', handleStorageChange)
   }, [])
 
   useEffect(() => {
@@ -210,9 +245,49 @@ function App() {
     setError('')
 
     try {
+      const rToken = getRefreshToken()
+      const aToken = getAccessToken()
+
+      if (!rToken && !aToken) {
+        setAccessToken(null)
+        setRefreshToken(null)
+        clearStoredUser()
+        clearWorkspaceCaches()
+        setUser(null)
+        setDashboard(null)
+        setResources(emptyResources)
+        setLoading(false)
+        return
+      }
+
+      // If we have a refresh token but no active access token, perform silent refresh
+      if (rToken && !aToken) {
+        try {
+          const refreshResponse = await axiosApi('/refresh', {
+            method: 'POST',
+            body: JSON.stringify({ refresh_token: rToken }),
+          })
+          setAccessToken(refreshResponse.access_token)
+          setRefreshToken(refreshResponse.refresh_token)
+        } catch {
+          // Token expired or blacklisted, clear credentials
+          setAccessToken(null)
+          setRefreshToken(null)
+          clearStoredUser()
+          clearWorkspaceCaches()
+          setUser(null)
+          setDashboard(null)
+          setResources(emptyResources)
+          setLoading(false)
+          return
+        }
+      }
+
       const meResponse = await api('/me')
 
       if (!meResponse.user) {
+        setAccessToken(null)
+        setRefreshToken(null)
         clearStoredUser()
         clearWorkspaceCaches()
         setUser(null)
@@ -228,7 +303,9 @@ function App() {
       }
       await loadRoleData(meResponse.user)
     } catch (requestError) {
-      if ([401, 419].includes(requestError.status)) {
+      if ([401, 403].includes(requestError.status)) {
+        setAccessToken(null)
+        setRefreshToken(null)
         clearStoredUser()
         clearWorkspaceCaches()
         setUser(null)
@@ -331,88 +408,7 @@ function App() {
   }
 
   async function api(path, options = {}) {
-    const method = (options.method || 'GET').toUpperCase()
-    const isFormData = options.body instanceof FormData
-    const headers = {
-      Accept: 'application/json',
-      ...(options.headers || {}),
-    }
-
-    if (!isFormData) {
-      headers['Content-Type'] = headers['Content-Type'] || 'application/json'
-    }
-
-    if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
-      headers['X-CSRF-TOKEN'] = headers['X-CSRF-TOKEN'] || (await ensureCsrfToken())
-    }
-
-    let response
-
-    try {
-      response = await fetch(`${API_BASE}${path}`, {
-        ...options,
-        method,
-        credentials: 'include',
-        headers: {
-          ...headers,
-        },
-      })
-    } catch {
-      throw new Error('Connexion impossible au backend. Lance Laravel avec: php artisan serve')
-    }
-
-    const data = await parseJsonResponse(response)
-
-    if (!response.ok) {
-      const validationErrors = data?.errors ? Object.values(data.errors).flat().join(' ') : ''
-      const requestError = new Error(
-        validationErrors ||
-          data?.message ||
-          `La requête a échoué sur ${API_BASE}${path}. Vérifiez que Laravel est lancé et que l'API est accessible.`
-      )
-
-      requestError.status = response.status
-
-      if (response.status === 403 && ['Your account has been deactivated.', 'Votre compte a été désactivé.'].includes(data?.message)) {
-        setCsrfToken('')
-        clearStoredUser()
-        clearWorkspaceCaches()
-        setUser(null)
-        setDashboard(null)
-        setResources(emptyResources)
-        window.history.replaceState(null, '', '/login')
-      }
-
-      throw requestError
-    }
-
-    if (data === null) {
-      throw new Error(`Le backend n'a pas renvoyé du JSON sur ${API_BASE}${path}. Vérifiez VITE_API_URL ou le proxy Vite.`)
-    }
-
-    return data
-  }
-
-  async function ensureCsrfToken() {
-    if (csrfToken) {
-      return csrfToken
-    }
-
-    const response = await fetch(`${API_BASE}/csrf-token`, {
-      credentials: 'include',
-      headers: {
-        Accept: 'application/json',
-      },
-    })
-
-    const data = await parseJsonResponse(response)
-    if (!data?.csrf_token) {
-      throw new Error(`Le backend n'a pas renvoyé un token CSRF JSON sur ${API_BASE}/csrf-token.`)
-    }
-
-    setCsrfToken(data.csrf_token)
-
-    return data.csrf_token
+    return axiosApi(path, options)
   }
 
   async function handleLogin(event) {
@@ -423,10 +419,11 @@ function App() {
     try {
       const data = await api('/login', {
         method: 'POST',
-        body: JSON.stringify({ ...loginForm, remember: rememberMe }),
+        body: JSON.stringify(loginForm),
       })
 
-      setCsrfToken('')
+      setAccessToken(data.access_token)
+      setRefreshToken(data.refresh_token)
       storeUser(data.user)
       clearWorkspaceCaches()
       setUser(data.user)
@@ -451,13 +448,9 @@ function App() {
         body: JSON.stringify(authForm),
       })
 
-      setCsrfToken('')
-      storeUser(data.user)
-      clearWorkspaceCaches()
-      setUser(data.user)
-      window.history.replaceState(null, '', '/dashboard')
-      await loadRoleData(data.user)
-      setFeedback('Compte stagiaire créé avec succès.')
+      setAuthForm(emptyRegister)
+      setAuthMode('login')
+      setFeedback(data.message || 'Inscription réussie ! Veuillez vous connecter.')
     } catch (requestError) {
       setError(requestError.message)
     } finally {
@@ -467,17 +460,25 @@ function App() {
 
   async function handleLogout() {
     try {
-      await api('/logout', { method: 'POST' })
+      const rToken = getRefreshToken()
+      if (rToken) {
+        await api('/logout', {
+          method: 'POST',
+          body: JSON.stringify({ refresh_token: rToken }),
+        })
+      }
     } catch {
       // ignore logout failures and clear local state anyway
     }
 
-    setCsrfToken('')
+    setAccessToken(null)
+    setRefreshToken(null)
     clearStoredUser()
     clearWorkspaceCaches()
     setUser(null)
     setDashboard(null)
     setResources(emptyResources)
+    window.localStorage.setItem('edudev.auth.logout_trigger', String(Date.now()))
     window.history.replaceState(null, '', '/login')
     setFeedback('Session fermée.')
   }
@@ -676,6 +677,54 @@ function App() {
         handleLogin={handleLogin}
         handleRegister={handleRegister}
       />
+    )
+  }
+
+  if (loading && !dashboard) {
+    return (
+      <div className="premium-splash-container" style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        width: '100vw',
+        background: 'radial-gradient(circle at center, #1e293b 0%, #0f172a 100%)',
+        color: '#f8fafc',
+        fontFamily: 'Inter, system-ui, sans-serif'
+      }}>
+        <div className="premium-loader" style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '1.5rem'
+        }}>
+          <div className="loader-ring" style={{
+            width: '60px',
+            height: '60px',
+            borderRadius: '50%',
+            border: '4px solid rgba(255, 255, 255, 0.1)',
+            borderTopColor: '#ff7900',
+            animation: 'spin 1s cubic-bezier(0.55, 0.15, 0.45, 0.85) infinite'
+          }}></div>
+          <p className="loader-text" style={{
+            fontSize: '1.1rem',
+            fontWeight: '500',
+            letterSpacing: '0.025em',
+            opacity: 0.8,
+            animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite'
+          }}>Validation de votre session...</p>
+        </div>
+        <style dangerouslySetInnerHTML={{__html: `
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+          @keyframes pulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 0.95; }
+          }
+        `}} />
+      </div>
     )
   }
 
@@ -1274,14 +1323,24 @@ function AuthExperience({
               </form>
             ) : (
               <form className="auth-form premium-auth-form" onSubmit={handleRegister}>
-                <AuthField
-                  label="Nom"
-                  type="text"
-                  placeholder="Entrez votre nom complet"
-                  value={authForm.name}
-                  autoComplete="name"
-                  onChange={(value) => setAuthForm({ ...authForm, name: value })}
-                />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <AuthField
+                    label="Prénom"
+                    type="text"
+                    placeholder="Entrez votre prénom"
+                    value={authForm.first_name || ''}
+                    autoComplete="given-name"
+                    onChange={(value) => setAuthForm({ ...authForm, first_name: value })}
+                  />
+                  <AuthField
+                    label="Nom"
+                    type="text"
+                    placeholder="Entrez votre nom"
+                    value={authForm.last_name || ''}
+                    autoComplete="family-name"
+                    onChange={(value) => setAuthForm({ ...authForm, last_name: value })}
+                  />
+                </div>
 
                 <AuthField
                   label="E-mail"

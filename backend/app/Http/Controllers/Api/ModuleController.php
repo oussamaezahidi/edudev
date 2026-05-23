@@ -13,7 +13,7 @@ class ModuleController extends Controller
     public function index(): JsonResponse
     {
         return response()->json(
-            Module::query()->with(['trainers:id,name', 'courses:id,module_id,title'])->orderBy('title')->get()
+            Module::query()->with(['trainers:id,first_name,last_name', 'courses:id,module_id,title'])->orderBy('title')->get()
         );
     }
 
@@ -34,12 +34,12 @@ class ModuleController extends Controller
             'option' => $data['option'] ?? null,
         ]);
 
-        return response()->json($module->load(['trainers:id,name']), 201);
+        return response()->json($module->load(['trainers:id,first_name,last_name']), 201);
     }
 
     public function show(Module $module): JsonResponse
     {
-        return response()->json($module->load(['trainers:id,name', 'courses.trainer:id,name']));
+        return response()->json($module->load(['trainers:id,first_name,last_name', 'courses.trainer:id,first_name,last_name']));
     }
 
     public function update(Request $request, Module $module): JsonResponse
@@ -58,7 +58,7 @@ class ModuleController extends Controller
             'option' => $data['option'] ?? null,
         ]);
 
-        return response()->json($module->load(['trainers:id,name']));
+        return response()->json($module->load(['trainers:id,first_name,last_name']));
     }
 
     public function destroy(Module $module): JsonResponse

@@ -44,11 +44,11 @@ class PracticalWorkRequest extends FormRequest
             ],
             'title' => ['required', 'string', 'max:255'],
             'instructions' => ['required', 'string'],
-            'document' => [
+            'file' => [
                 $this->isMethod('post') ? 'required' : 'nullable',
                 'file',
-                'mimetypes:application/pdf',
-                'max:512000',
+                'mimes:pdf',
+                'max:20480',
             ],
             'due_at' => ['nullable', 'date'],
         ];

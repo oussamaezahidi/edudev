@@ -16,7 +16,7 @@ class CourseController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = Course::query()
-            ->with(['module:id,title', 'trainer:id,name'])
+            ->with(['module:id,title', 'trainer:id,first_name,last_name'])
             ->withCount(['practicalWorks', 'assessments', 'trainees']);
 
         if ($request->user()?->role === 'trainer') {
@@ -84,7 +84,7 @@ class CourseController extends Controller
             ...$document,
         ]);
 
-        return response()->json($this->serializeCourse($course->load(['module:id,title', 'trainer:id,name'])->loadCount([
+        return response()->json($this->serializeCourse($course->load(['module:id,title', 'trainer:id,first_name,last_name'])->loadCount([
             'practicalWorks',
             'assessments',
             'trainees',
@@ -99,11 +99,11 @@ class CourseController extends Controller
             $this->serializeCourse(
                 $course->load([
                     'module:id,title,description',
-                    'trainer:id,name,email,specialty',
+                    'trainer:id,first_name,last_name,email,specialty',
                     'practicalWorks.course:id,title',
                     'assessments.module:id,title',
                     'assessments.course:id,title',
-                    'trainees:id,name,email,specialty',
+                    'trainees:id,first_name,last_name,email,specialty',
                 ])->loadCount(['practicalWorks', 'assessments', 'trainees']),
                 includeRelations: true
             )
@@ -126,14 +126,14 @@ class CourseController extends Controller
             'duration_hours' => (int) $data['duration_hours'],
         ];
 
-        if ($request->hasFile('document')) {
+        if ($request->hasFile('file')) {
             $this->deleteDocument($course);
             $attributes = [...$attributes, ...$this->storeDocument($request, $trainerId)];
         }
 
         $course->update($attributes);
 
-        return response()->json($this->serializeCourse($course->load(['module:id,title', 'trainer:id,name'])->loadCount([
+        return response()->json($this->serializeCourse($course->load(['module:id,title', 'trainer:id,first_name,last_name'])->loadCount([
             'practicalWorks',
             'assessments',
             'trainees',
@@ -149,25 +149,29 @@ class CourseController extends Controller
         return response()->json(['message' => 'Course deleted.']);
     }
 
-    public function preview(Request $request, Course $course): StreamedResponse
+    public function preview(Request $request, Course $course): \Symfony\Component\HttpFoundation\Response
     {
         $this->authorizeTrainerOwnership($request, $course);
+        $this->authorizeStudentAccess($request, $course);
         abort_unless($course->hasDocument(), 404);
 
-        return Storage::disk($course->document_disk)->response(
-            $course->document_path,
-            $course->document_name,
-            [
-                'Content-Type' => $course->document_mime_type ?: 'application/pdf',
-                'Content-Disposition' => 'inline; filename="'.$course->document_name.'"',
-            ]
-        );
+        $path = Storage::disk($course->document_disk)->path($course->document_path);
+        abort_unless(file_exists($path), 404, "Le fichier demandé n'existe pas.");
+
+        return response()->file($path, [
+            'Content-Type' => $course->document_mime_type ?: 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.$course->document_name.'"',
+        ]);
     }
 
-    public function download(Request $request, Course $course): StreamedResponse
+    public function download(Request $request, Course $course): \Symfony\Component\HttpFoundation\Response
     {
         $this->authorizeTrainerOwnership($request, $course);
+        $this->authorizeStudentAccess($request, $course);
         abort_unless($course->hasDocument(), 404);
+
+        $path = Storage::disk($course->document_disk)->path($course->document_path);
+        abort_unless(file_exists($path), 404, "Le fichier demandé n'existe pas.");
 
         if ($request->user() && $request->user()->role === 'trainee') {
             try {
@@ -183,27 +187,87 @@ class CourseController extends Controller
             }
         }
 
-        return Storage::disk($course->document_disk)->download(
-            $course->document_path,
-            $course->document_name,
-            ['Content-Type' => $course->document_mime_type ?: 'application/pdf']
-        );
+        return response()->download($path, $course->document_name, [
+            'Content-Type' => $course->document_mime_type ?: 'application/pdf',
+        ]);
+    }
+
+    private function authorizeStudentAccess(Request $request, Course $course): void
+    {
+        if ($request->user()?->role === 'trainee') {
+            $specialty = (string) $request->user()->specialty;
+            $yearLevel = str_contains($specialty, '2') ? 2 : 1;
+
+            $option = null;
+            if ($yearLevel === 2) {
+                if (str_contains($specialty, 'Full Stack')) {
+                    $option = 'Full Stack';
+                } elseif (str_contains($specialty, 'Mobile')) {
+                    $option = 'Mobile';
+                } elseif (str_contains($specialty, 'RV/RA')) {
+                    $option = 'RV/RA';
+                }
+            }
+
+            $hasAccess = $course->module()
+                ->where('year_level', $yearLevel)
+                ->where(function ($q) use ($option) {
+                    $q->whereNull('option')
+                      ->orWhere('option', $option);
+                })
+                ->exists();
+
+            abort_unless($hasAccess, 403, "Vous n'avez pas accès à ce cours.");
+        }
     }
 
     private function storeDocument(CourseRequest $request, int $trainerId): array
     {
-        $file = $request->file('document');
-        $fileName = Str::uuid()->toString().'.'.$file->extension();
-        $directory = "courses/{$trainerId}";
-        $path = Storage::disk('local')->putFileAs($directory, $file, $fileName);
+        if (! $request->hasFile('file')) {
+            return [];
+        }
 
-        return [
-            'document_disk' => 'local',
-            'document_path' => $path,
-            'document_name' => $file->getClientOriginalName(),
-            'document_mime_type' => $file->getClientMimeType(),
-            'document_size' => $file->getSize(),
-        ];
+        try {
+            $file = $request->file('file');
+            \Log::info('Course PDF Upload initiated', [
+                'trainer_id' => $trainerId,
+                'name' => $file->getClientOriginalName(),
+                'size' => $file->getSize(),
+                'mime' => $file->getClientMimeType()
+            ]);
+
+            $publicUploadsDir = storage_path('app/public/uploads');
+            if (!file_exists($publicUploadsDir)) {
+                mkdir($publicUploadsDir, 0755, true);
+                \Log::info('Created uploads directory automatically in public disk root');
+            }
+
+            $path = $file->store('uploads', 'public');
+            $fullPath = storage_path('app/public/' . $path);
+            $fileExists = file_exists($fullPath);
+
+            \Log::info('Course PDF Upload completed successfully', [
+                'generated_path' => $path,
+                'absolute_path' => $fullPath,
+                'file_exists_on_disk' => $fileExists,
+                'saved_file_size' => $fileExists ? filesize($fullPath) : 0
+            ]);
+
+            return [
+                'document_disk' => 'public',
+                'document_path' => $path,
+                'document_name' => $file->getClientOriginalName(),
+                'document_mime_type' => $file->getClientMimeType(),
+                'document_size' => $file->getSize(),
+            ];
+        } catch (\Exception $e) {
+            \Log::error('Course PDF Upload failed', [
+                'trainer_id' => $trainerId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
+        }
     }
 
     private function deleteDocument(Course $course): void
@@ -215,21 +279,35 @@ class CourseController extends Controller
 
     private function getDownloadStats(string $type, int $id, int $yearLevel, ?string $option = null): array
     {
-        $traineeQuery = \App\Models\User::query()
-            ->where('role', 'trainee')
-            ->where('specialty', $yearLevel === 2 ? 'like' : 'like', $yearLevel === 2 ? '%2%' : '%1%');
+        static $traineeCountCache = [];
+        static $downloadCountsCache = null;
 
-        if ($yearLevel === 2 && $option) {
-            $traineeQuery->where('specialty', 'like', "%{$option}%");
+        $cacheKey = "{$yearLevel}-" . ($option ?: 'null');
+
+        if (!isset($traineeCountCache[$cacheKey])) {
+            $traineeQuery = \App\Models\User::query()
+                ->where('role', 'trainee')
+                ->where('specialty', $yearLevel === 2 ? 'like' : 'like', $yearLevel === 2 ? '%2%' : '%1%');
+
+            if ($yearLevel === 2 && $option) {
+                $traineeQuery->where('specialty', 'like', "%{$option}%");
+            }
+
+            $traineeCountCache[$cacheKey] = $traineeQuery->count();
         }
 
-        $totalTrainees = $traineeQuery->count();
+        $totalTrainees = $traineeCountCache[$cacheKey];
 
-        $downloadedCount = \DB::table('document_downloads')
-            ->where('downloadable_type', $type)
-            ->where('downloadable_id', $id)
-            ->count();
+        if ($downloadCountsCache === null) {
+            $downloadCountsCache = \DB::table('document_downloads')
+                ->where('downloadable_type', $type)
+                ->selectRaw('downloadable_id, count(*) as count')
+                ->groupBy('downloadable_id')
+                ->pluck('count', 'downloadable_id')
+                ->toArray();
+        }
 
+        $downloadedCount = $downloadCountsCache[$id] ?? 0;
         $percentage = $totalTrainees > 0 ? (int) round(($downloadedCount / $totalTrainees) * 100) : 0;
 
         return [

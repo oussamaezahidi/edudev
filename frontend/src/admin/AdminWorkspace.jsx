@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import Modal from '../components/Modal'
+import { client as axiosClient } from '../api/client'
 
 const sections = [
   ['dashboard', 'Tableau de bord'],
@@ -12,7 +13,8 @@ const sections = [
 ]
 
 const emptyUser = {
-  name: '',
+  first_name: '',
+  last_name: '',
   email: '',
   password: '',
   role: 'trainee',
@@ -69,7 +71,7 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
   const [userForm, setUserForm] = useState(emptyUser)
   const [moduleForm, setModuleForm] = useState(emptyModule)
   const [assignmentForm, setAssignmentForm] = useState({ trainer_id: '', module_ids: [] })
-  const [profileForm, setProfileForm] = useState({ name: user.name, email: user.email, avatar: null })
+  const [profileForm, setProfileForm] = useState({ first_name: user.first_name || '', last_name: user.last_name || '', email: user.email, avatar: null })
   const [passwordForm, setPasswordForm] = useState({ current_password: '', password: '', password_confirmation: '' })
   const [settingsForm, setSettingsForm] = useState(appSettings)
 
@@ -151,7 +153,7 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
 
       const nextData = { dashboard, users, modules, courses, practicalWorks, assessments, profile: profile.user, settings: settings.settings, assignmentHistory: assignments.history ?? [] }
       setData(nextData)
-      setProfileForm({ name: profile.user.name, email: profile.user.email, avatar: null })
+      setProfileForm({ first_name: profile.user.first_name || '', last_name: profile.user.last_name || '', email: profile.user.email, avatar: null })
       setSettingsForm(settings.settings)
       onSettingsChange?.(settings.settings)
     } catch (requestError) {
@@ -169,7 +171,8 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
   function openUserModal(nextUser = null) {
     setEditingUser(nextUser)
     setUserForm(nextUser ? {
-      name: nextUser.name ?? '',
+      first_name: nextUser.first_name ?? '',
+      last_name: nextUser.last_name ?? '',
       email: nextUser.email ?? '',
       password: '',
       role: nextUser.role ?? 'trainee',
@@ -276,7 +279,8 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
 
     try {
       const form = new FormData()
-      form.append('name', profileForm.name)
+      form.append('first_name', profileForm.first_name)
+      form.append('last_name', profileForm.last_name)
       form.append('email', profileForm.email)
       if (profileForm.avatar) form.append('avatar', profileForm.avatar)
       await api('/profile', { method: 'POST', body: form })
@@ -387,18 +391,16 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
   }
 
   function updateSettings(group, key, value) {
-    setSettingsForm((previous) => {
-      const next = {
-        ...previous,
-        [group]: {
-          ...previous[group],
-          [key]: value,
-        },
-      }
-      setData((current) => ({ ...current, settings: next }))
-      onSettingsChange?.(next)
-      return next
-    })
+    const next = {
+      ...settingsForm,
+      [group]: {
+        ...settingsForm[group],
+        [key]: value,
+      },
+    }
+    setSettingsForm(next)
+    setData((current) => ({ ...current, settings: next }))
+    onSettingsChange?.(next)
   }
 
   function applyThemePreference(mode) {
@@ -453,14 +455,15 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
 
     try {
       const url = resolveUrl(document.preview_url)
-      const response = await fetch(url, { credentials: 'include', headers: { Accept: 'application/pdf' } })
-      if (!response.ok) throw new Error('Impossible d ouvrir ce PDF.')
-      const blob = await response.blob()
-      const urlBlob = URL.createObjectURL(blob)
+      const response = await axiosClient.get(url, {
+        responseType: 'blob',
+        headers: { Accept: 'application/pdf' }
+      })
+      const urlBlob = URL.createObjectURL(response.data)
       if (preview?.url) URL.revokeObjectURL(preview.url)
       setPreview({ title, url: urlBlob })
     } catch (requestError) {
-      setError(requestError.message)
+      setError("Impossible d'ouvrir ce PDF.")
     }
   }
 
@@ -469,17 +472,17 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
 
     try {
       const url = resolveUrl(file.download_url)
-      const response = await fetch(url, { credentials: 'include' })
-      if (!response.ok) throw new Error('Telechargement impossible.')
-      const blob = await response.blob()
-      const objectUrl = URL.createObjectURL(blob)
+      const response = await axiosClient.get(url, {
+        responseType: 'blob'
+      })
+      const objectUrl = URL.createObjectURL(response.data)
       const anchor = window.document.createElement('a')
       anchor.href = objectUrl
       anchor.download = file.name
       anchor.click()
       URL.revokeObjectURL(objectUrl)
     } catch (requestError) {
-      setError(requestError.message)
+      setError("Téléchargement impossible.")
     }
   }
 
@@ -686,7 +689,10 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
                     </div>
                   </div>
                   <form className="grid gap-4 rounded-[28px] border border-slate-200 bg-slate-50 p-5 dark:border-slate-800 dark:bg-slate-950/70" onSubmit={submitProfile}>
-                    <Input label="Nom" value={profileForm.name} onChange={(value) => setProfileForm((previous) => ({ ...previous, name: value }))} />
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                      <Input label="Prénom" value={profileForm.first_name || ''} onChange={(value) => setProfileForm((previous) => ({ ...previous, first_name: value }))} />
+                      <Input label="Nom" value={profileForm.last_name || ''} onChange={(value) => setProfileForm((previous) => ({ ...previous, last_name: value }))} />
+                    </div>
                     <Input label="Email" type="email" value={profileForm.email} onChange={(value) => setProfileForm((previous) => ({ ...previous, email: value }))} />
                     <FileInput label="Avatar" accept="image/png,image/jpeg,image/webp" onChange={(file) => setProfileForm((previous) => ({ ...previous, avatar: file }))} />
                     <div className="flex flex-wrap gap-3">
@@ -702,7 +708,10 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
 
         <Modal open={modals.user} title={editingUser ? 'Modifier utilisateur' : 'Ajouter utilisateur'} onClose={() => setModals((previous) => ({ ...previous, user: false }))}>
           <form className="space-y-4" onSubmit={submitUser}>
-            <Input label="Nom" value={userForm.name} onChange={(value) => setUserForm((previous) => ({ ...previous, name: value }))} />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <Input label="Prénom" value={userForm.first_name || ''} onChange={(value) => setUserForm((previous) => ({ ...previous, first_name: value }))} />
+              <Input label="Nom" value={userForm.last_name || ''} onChange={(value) => setUserForm((previous) => ({ ...previous, last_name: value }))} />
+            </div>
             <Input label="Email" type="email" value={userForm.email} onChange={(value) => setUserForm((previous) => ({ ...previous, email: value }))} />
             <Input label={editingUser ? 'Mot de passe (optionnel)' : 'Mot de passe'} type="password" value={userForm.password} onChange={(value) => setUserForm((previous) => ({ ...previous, password: value }))} />
             <Select label="Rôle" value={userForm.role} onChange={(value) => setUserForm((previous) => ({ ...previous, role: value }))} options={[['admin', 'Admin'], ['trainer', 'Formateur'], ['trainee', 'Stagiaire']]} />

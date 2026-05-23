@@ -15,8 +15,10 @@ class EnsureUserIsActive
 
         if ($user && ! $user->is_active) {
             Auth::guard('web')->logout();
-            $request->session()->invalidate();
-            $request->session()->regenerateToken();
+            if ($request->hasSession()) {
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+            }
 
             return response()->json([
                 'message' => 'Your account has been deactivated.',

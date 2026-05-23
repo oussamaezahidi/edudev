@@ -1,0 +1,21 @@
+# Ignored database backup dumps
+*.sql
+
+# Ignored backend local admin/diagnostic tools
+backend/add_demo_users.php
+backend/check_dbs.php
+backend/check_railway_users.php
+backend/diag.php
+backend/diag2.php
+backend/diag3.php
+backend/fix_pass.php
+backend/reset_railway.php
+backend/sync_to_railway.php
+
+# PHPUnit cache
+backend/.phpunit.result.cache
+
+# Environment configurations
+backend/.env
+backend/.env.backup
+backend/.env.production

@@ -16,7 +16,8 @@ class AdminUserController extends Controller
         $query = User::query()
             ->with(['modules:id,title', 'enrolledCourses:id,title'])
             ->withCount(['courses', 'practicalWorks', 'assessments'])
-            ->orderBy('name');
+            ->orderBy('first_name')
+            ->orderBy('last_name');
 
         if ($role = $request->string('role')->toString()) {
             $query->where('role', $role);
@@ -24,7 +25,8 @@ class AdminUserController extends Controller
 
         if ($search = trim($request->string('q')->toString())) {
             $query->where(fn ($builder) => $builder
-                ->where('name', 'like', "%{$search}%")
+                ->where('first_name', 'like', "%{$search}%")
+                ->orWhere('last_name', 'like', "%{$search}%")
                 ->orWhere('email', 'like', "%{$search}%"));
         }
 
@@ -34,7 +36,8 @@ class AdminUserController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
+            'first_name' => ['required', 'string', 'max:255'],
+            'last_name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:6'],
             'role' => ['required', Rule::in(['admin', 'trainer', 'trainee'])],
@@ -47,7 +50,8 @@ class AdminUserController extends Controller
         ]);
 
         $user = User::query()->create([
-            'name' => $data['name'],
+            'first_name' => trim($data['first_name']),
+            'last_name' => trim($data['last_name']),
             'email' => strtolower(trim($data['email'])),
             'password' => Hash::make($data['password']),
             'role' => $data['role'],
@@ -70,7 +74,8 @@ class AdminUserController extends Controller
     public function update(Request $request, User $user): JsonResponse
     {
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
+            'first_name' => ['required', 'string', 'max:255'],
+            'last_name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
             'password' => ['nullable', 'string', 'min:6'],
             'role' => ['required', Rule::in(['admin', 'trainer', 'trainee'])],
@@ -83,7 +88,8 @@ class AdminUserController extends Controller
         ]);
 
         $user->update([
-            'name' => $data['name'],
+            'first_name' => trim($data['first_name']),
+            'last_name' => trim($data['last_name']),
             'email' => strtolower(trim($data['email'])),
             'role' => $data['role'],
             'is_active' => $data['is_active'] ?? $user->is_active,

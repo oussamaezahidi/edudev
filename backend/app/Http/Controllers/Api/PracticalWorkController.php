@@ -16,7 +16,7 @@ class PracticalWorkController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = PracticalWork::query()
-            ->with(['course:id,title,module_id', 'course.module:id,title', 'trainer:id,name']);
+            ->with(['course:id,title,module_id', 'course.module:id,title', 'trainer:id,first_name,last_name']);
 
         if ($request->user()?->role === 'trainer') {
             $query->where('trainer_id', $request->user()->id);
@@ -60,20 +60,21 @@ class PracticalWorkController extends Controller
         return response()->json($this->serializePracticalWork($practicalWork->load([
             'course:id,title,module_id',
             'course.module:id,title',
-            'trainer:id,name',
+            'trainer:id,first_name,last_name',
         ])), 201);
     }
 
     public function show(Request $request, PracticalWork $practicalWork): JsonResponse
     {
         $this->authorizeTrainerOwnership($request, $practicalWork->trainer_id);
+        $this->authorizeStudentAccess($request, $practicalWork);
 
         return response()->json(
             $this->serializePracticalWork(
                 $practicalWork->load([
                     'course:id,title,module_id',
                     'course.module:id,title',
-                    'trainer:id,name,email',
+                    'trainer:id,first_name,last_name,email',
                 ]),
                 includeRelations: true
             )
@@ -95,7 +96,7 @@ class PracticalWorkController extends Controller
             'due_at' => $data['due_at'] ?? null,
         ];
 
-        if ($request->hasFile('document')) {
+        if ($request->hasFile('file')) {
             $this->deleteDocument($practicalWork);
             $attributes = [...$attributes, ...$this->storeDocument($request, $trainerId)];
         }
@@ -105,7 +106,7 @@ class PracticalWorkController extends Controller
         return response()->json($this->serializePracticalWork($practicalWork->load([
             'course:id,title,module_id',
             'course.module:id,title',
-            'trainer:id,name',
+            'trainer:id,first_name,last_name',
         ])));
     }
 
@@ -118,27 +119,29 @@ class PracticalWorkController extends Controller
         return response()->json(['message' => 'Practical work deleted.']);
     }
 
-    public function preview(Request $request, PracticalWork $practicalWork): StreamedResponse
+    public function preview(Request $request, PracticalWork $practicalWork): \Symfony\Component\HttpFoundation\Response
     {
         $this->authorizeTrainerOwnership($request, $practicalWork->trainer_id);
         $this->authorizeStudentAccess($request, $practicalWork);
         abort_unless($practicalWork->hasDocument(), 404);
 
-        return Storage::disk($practicalWork->document_disk)->response(
-            $practicalWork->document_path,
-            $practicalWork->document_name,
-            [
-                'Content-Type' => $practicalWork->document_mime_type ?: 'application/pdf',
-                'Content-Disposition' => 'inline; filename="'.$practicalWork->document_name.'"',
-            ]
-        );
+        $path = Storage::disk($practicalWork->document_disk)->path($practicalWork->document_path);
+        abort_unless(file_exists($path), 404, "Le fichier demandé n'existe pas.");
+
+        return response()->file($path, [
+            'Content-Type' => $practicalWork->document_mime_type ?: 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.$practicalWork->document_name.'"',
+        ]);
     }
 
-    public function download(Request $request, PracticalWork $practicalWork): StreamedResponse
+    public function download(Request $request, PracticalWork $practicalWork): \Symfony\Component\HttpFoundation\Response
     {
         $this->authorizeTrainerOwnership($request, $practicalWork->trainer_id);
         $this->authorizeStudentAccess($request, $practicalWork);
         abort_unless($practicalWork->hasDocument(), 404);
+
+        $path = Storage::disk($practicalWork->document_disk)->path($practicalWork->document_path);
+        abort_unless(file_exists($path), 404, "Le fichier demandé n'existe pas.");
 
         if ($request->user() && $request->user()->role === 'trainee') {
             try {
@@ -154,25 +157,42 @@ class PracticalWorkController extends Controller
             }
         }
 
-        return Storage::disk($practicalWork->document_disk)->download(
-            $practicalWork->document_path,
-            $practicalWork->document_name,
-            ['Content-Type' => $practicalWork->document_mime_type ?: 'application/pdf']
-        );
+        return response()->download($path, $practicalWork->document_name, [
+            'Content-Type' => $practicalWork->document_mime_type ?: 'application/pdf',
+        ]);
     }
 
-    private function getDownloadStats(string $type, int $id, int $yearLevel): array
+    private function getDownloadStats(string $type, int $id, int $yearLevel, ?string $option = null): array
     {
-        $totalTrainees = \App\Models\User::query()
-            ->where('role', 'trainee')
-            ->where('specialty', $yearLevel === 2 ? 'like' : 'like', $yearLevel === 2 ? '%2%' : '%1%')
-            ->count();
+        static $traineeCountCache = [];
+        static $downloadCountsCache = null;
 
-        $downloadedCount = \DB::table('document_downloads')
-            ->where('downloadable_type', $type)
-            ->where('downloadable_id', $id)
-            ->count();
+        $cacheKey = "{$yearLevel}-" . ($option ?: 'null');
 
+        if (!isset($traineeCountCache[$cacheKey])) {
+            $traineeQuery = \App\Models\User::query()
+                ->where('role', 'trainee')
+                ->where('specialty', $yearLevel === 2 ? 'like' : 'like', $yearLevel === 2 ? '%2%' : '%1%');
+
+            if ($yearLevel === 2 && $option) {
+                $traineeQuery->where('specialty', 'like', "%{$option}%");
+            }
+
+            $traineeCountCache[$cacheKey] = $traineeQuery->count();
+        }
+
+        $totalTrainees = $traineeCountCache[$cacheKey];
+
+        if ($downloadCountsCache === null) {
+            $downloadCountsCache = \DB::table('document_downloads')
+                ->where('downloadable_type', $type)
+                ->selectRaw('downloadable_id, count(*) as count')
+                ->groupBy('downloadable_id')
+                ->pluck('count', 'downloadable_id')
+                ->toArray();
+        }
+
+        $downloadedCount = $downloadCountsCache[$id] ?? 0;
         $percentage = $totalTrainees > 0 ? (int) round(($downloadedCount / $totalTrainees) * 100) : 0;
 
         return [
@@ -200,7 +220,7 @@ class PracticalWorkController extends Controller
                 'preview_url' => "/api/practical-works/{$practicalWork->id}/preview",
                 'download_url' => "/api/practical-works/{$practicalWork->id}/download",
             ] : null,
-            'download_stats' => $this->getDownloadStats(PracticalWork::class, $practicalWork->id, $practicalWork->course?->module?->year_level ?? 1),
+            'download_stats' => $this->getDownloadStats(PracticalWork::class, $practicalWork->id, $practicalWork->course?->module?->year_level ?? 1, $practicalWork->course?->module?->option),
             'created_at' => $practicalWork->created_at,
         ];
 
@@ -216,26 +236,82 @@ class PracticalWorkController extends Controller
 
     private function authorizeStudentAccess(Request $request, PracticalWork $practicalWork): void
     {
-        // Trainees can access any practical work
+        if ($request->user()?->role === 'trainee') {
+            $specialty = (string) $request->user()->specialty;
+            $yearLevel = str_contains($specialty, '2') ? 2 : 1;
+
+            $option = null;
+            if ($yearLevel === 2) {
+                if (str_contains($specialty, 'Full Stack')) {
+                    $option = 'Full Stack';
+                } elseif (str_contains($specialty, 'Mobile')) {
+                    $option = 'Mobile';
+                } elseif (str_contains($specialty, 'RV/RA')) {
+                    $option = 'RV/RA';
+                }
+            }
+
+            $hasAccess = $practicalWork->course()
+                ->whereHas('module', function ($builder) use ($yearLevel, $option) {
+                    $builder->where('year_level', $yearLevel)
+                            ->where(function ($q) use ($option) {
+                                $q->whereNull('option')
+                                  ->orWhere('option', $option);
+                            });
+                })
+                ->exists();
+
+            abort_unless($hasAccess, 403, "Vous n'avez pas accès à ce TP.");
+        }
     }
 
     private function storeDocument(PracticalWorkRequest $request, int $trainerId): array
     {
-        if (! $request->hasFile('document')) {
+        if (! $request->hasFile('file')) {
             return [];
         }
 
-        $file = $request->file('document');
-        $directory = "practical-works/{$trainerId}";
-        $path = Storage::disk('local')->putFileAs($directory, $file, Str::uuid()->toString().'.'.$file->extension());
+        try {
+            $file = $request->file('file');
+            \Log::info('Practical Work PDF Upload initiated', [
+                'trainer_id' => $trainerId,
+                'name' => $file->getClientOriginalName(),
+                'size' => $file->getSize(),
+                'mime' => $file->getClientMimeType()
+            ]);
 
-        return [
-            'document_disk' => 'local',
-            'document_path' => $path,
-            'document_name' => $file->getClientOriginalName(),
-            'document_mime_type' => $file->getClientMimeType(),
-            'document_size' => $file->getSize(),
-        ];
+            $publicUploadsDir = storage_path('app/public/uploads');
+            if (!file_exists($publicUploadsDir)) {
+                mkdir($publicUploadsDir, 0755, true);
+                \Log::info('Created uploads directory automatically in public disk root');
+            }
+
+            $path = $file->store('uploads', 'public');
+            $fullPath = storage_path('app/public/' . $path);
+            $fileExists = file_exists($fullPath);
+
+            \Log::info('Practical Work PDF Upload completed successfully', [
+                'generated_path' => $path,
+                'absolute_path' => $fullPath,
+                'file_exists_on_disk' => $fileExists,
+                'saved_file_size' => $fileExists ? filesize($fullPath) : 0
+            ]);
+
+            return [
+                'document_disk' => 'public',
+                'document_path' => $path,
+                'document_name' => $file->getClientOriginalName(),
+                'document_mime_type' => $file->getClientMimeType(),
+                'document_size' => $file->getSize(),
+            ];
+        } catch (\Exception $e) {
+            \Log::error('Practical Work PDF Upload failed', [
+                'trainer_id' => $trainerId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
+        }
     }
 
     private function deleteDocument(PracticalWork $practicalWork): void

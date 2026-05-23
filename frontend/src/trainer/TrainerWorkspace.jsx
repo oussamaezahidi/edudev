@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getEffectiveDarkMode, setUserThemePreference } from '../themePreferences'
+import { client as axiosClient } from '../api/client'
 
 const trainerSections = [
   { key: 'dashboard', label: 'Tableau de bord', icon: GridIcon },
@@ -36,7 +37,8 @@ const emptyAssessmentForm = {
 }
 
 const emptyProfileForm = {
-  name: '',
+  first_name: '',
+  last_name: '',
   email: '',
   phone: '',
   bio: '',
@@ -83,7 +85,8 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
   const [profileUser, setProfileUser] = useState(user)
   const [profileForm, setProfileForm] = useState({
     ...emptyProfileForm,
-    name: user?.name ?? '',
+    first_name: user?.first_name ?? '',
+    last_name: user?.last_name ?? '',
     email: user?.email ?? '',
     phone: user?.phone ?? '',
     bio: user?.bio ?? '',
@@ -127,7 +130,8 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
     setProfileUser(user)
     setProfileForm({
       ...emptyProfileForm,
-      name: user?.name ?? '',
+      first_name: user?.first_name ?? '',
+      last_name: user?.last_name ?? '',
       email: user?.email ?? '',
       phone: user?.phone ?? '',
       bio: user?.bio ?? '',
@@ -258,7 +262,8 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
         setProfileUser(profile.user)
         setProfileForm({
           ...emptyProfileForm,
-          name: profile.user.name ?? '',
+          first_name: profile.user.first_name ?? '',
+          last_name: profile.user.last_name ?? '',
           email: profile.user.email ?? '',
           phone: profile.user.phone ?? '',
           bio: profile.user.bio ?? '',
@@ -328,7 +333,7 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
       body.append('duration_hours', String(courseForm.duration_hours))
 
       if (courseFile) {
-        body.append('document', courseFile)
+        body.append('file', courseFile)
       }
 
       const path = editingCourse ? `/courses/${editingCourse.id}` : '/courses'
@@ -367,7 +372,7 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
       body.append('title', practicalForm.title)
       body.append('instructions', practicalForm.instructions)
       if (practicalForm.due_at) body.append('due_at', practicalForm.due_at)
-      if (practicalFile) body.append('document', practicalFile)
+      if (practicalFile) body.append('file', practicalFile)
       if (editingPractical) body.append('_method', 'PUT')
 
       await api(editingPractical ? `/practical-works/${editingPractical.id}` : '/practical-works', {
@@ -399,7 +404,7 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
       if (assessmentForm.scheduled_at) body.append('scheduled_at', assessmentForm.scheduled_at)
       body.append('duration_minutes', String(assessmentForm.duration_minutes))
       body.append('total_points', String(assessmentForm.total_points))
-      if (assessmentFile) body.append('document', assessmentFile)
+      if (assessmentFile) body.append('file', assessmentFile)
       if (editingAssessment) body.append('_method', 'PUT')
 
       await api(editingAssessment ? `/assessments/${editingAssessment.id}` : '/assessments', {
@@ -489,8 +494,7 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
   function resolveUrl(url) {
     if (!url) return ''
     if (url.startsWith('/api')) {
-      const apiBase = import.meta.env.VITE_API_URL || '/api'
-      return url.replace('/api', apiBase)
+      return url.replace('/api', '')
     }
     return url
   }
@@ -498,19 +502,11 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
   async function openPreview(documentUrl, title) {
     try {
       const resolved = resolveUrl(documentUrl)
-      const response = await fetch(resolved, {
-        credentials: 'include',
-        headers: {
-          Accept: 'application/pdf',
-        },
+      const response = await axiosClient.get(resolved, {
+        responseType: 'blob',
+        headers: { Accept: 'application/pdf' }
       })
-
-      if (!response.ok) {
-        throw new Error('Impossible de prévisualiser ce document pour le moment.')
-      }
-
-      const blob = await response.blob()
-      const urlBlob = URL.createObjectURL(blob)
+      const urlBlob = URL.createObjectURL(response.data)
 
       if (previewDocument?.url) {
         URL.revokeObjectURL(previewDocument.url)
@@ -518,30 +514,24 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
 
       setPreviewDocument({ url: urlBlob, title })
     } catch (error) {
-      pushToast('error', error.message)
+      pushToast('error', 'Impossible de prévisualiser ce document pour le moment.')
     }
   }
 
   async function downloadProtectedFile(url, fileName) {
     try {
       const resolved = resolveUrl(url)
-      const response = await fetch(resolved, {
-        credentials: 'include',
+      const response = await axiosClient.get(resolved, {
+        responseType: 'blob'
       })
-
-      if (!response.ok) {
-        throw new Error('Impossible de télécharger ce fichier pour le moment.')
-      }
-
-      const blob = await response.blob()
-      const objectUrl = URL.createObjectURL(blob)
+      const objectUrl = URL.createObjectURL(response.data)
       const anchor = document.createElement('a')
       anchor.href = objectUrl
       anchor.download = fileName
       anchor.click()
       URL.revokeObjectURL(objectUrl)
     } catch (error) {
-      pushToast('error', error.message)
+      pushToast('error', 'Impossible de télécharger ce fichier pour le moment.')
     }
   }
 
@@ -559,7 +549,8 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
 
     try {
       const body = new FormData()
-      body.append('name', profileForm.name)
+      body.append('first_name', profileForm.first_name)
+      body.append('last_name', profileForm.last_name)
       body.append('email', profileForm.email)
       if (profileForm.phone) body.append('phone', profileForm.phone)
       if (profileForm.bio) body.append('bio', profileForm.bio)
@@ -577,7 +568,8 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
         setProfileUser(data.user)
         setProfileForm({
           ...emptyProfileForm,
-          name: data.user.name ?? '',
+          first_name: data.user.first_name ?? '',
+          last_name: data.user.last_name ?? '',
           email: data.user.email ?? '',
           phone: data.user.phone ?? '',
           bio: data.user.bio ?? '',
@@ -663,7 +655,8 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
     setProfileErrors({})
     setProfileForm({
       ...emptyProfileForm,
-      name: currentUser?.name ?? '',
+      first_name: currentUser?.first_name ?? '',
+      last_name: currentUser?.last_name ?? '',
       email: currentUser?.email ?? '',
       phone: currentUser?.phone ?? '',
       bio: currentUser?.bio ?? '',
@@ -1206,15 +1199,28 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
                           <form className="space-y-5" onSubmit={submitProfile}>
                             <div className="grid gap-4 md:grid-cols-2">
                               <InputField
-                                label="Nom complet"
-                                value={profileForm.name}
+                                label="Prénom"
+                                value={profileForm.first_name}
                                 onChange={(value) => {
-                                  setProfileForm((previous) => ({ ...previous, name: value }))
-                                  setProfileErrors((previous) => ({ ...previous, name: '' }))
+                                  setProfileForm((previous) => ({ ...previous, first_name: value }))
+                                  setProfileErrors((previous) => ({ ...previous, first_name: '' }))
                                 }}
-                                placeholder="Votre nom complet"
-                                error={profileErrors.name}
+                                placeholder="Votre prénom"
+                                error={profileErrors.first_name}
                               />
+                              <InputField
+                                label="Nom"
+                                value={profileForm.last_name}
+                                onChange={(value) => {
+                                  setProfileForm((previous) => ({ ...previous, last_name: value }))
+                                  setProfileErrors((previous) => ({ ...previous, last_name: '' }))
+                                }}
+                                placeholder="Votre nom"
+                                error={profileErrors.last_name}
+                              />
+                            </div>
+
+                            <div className="grid gap-4 md:grid-cols-2">
                               <InputField
                                 label="Adresse email"
                                 type="email"
@@ -1226,15 +1232,14 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
                                 placeholder="email@exemple.com"
                                 error={profileErrors.email}
                               />
+                              <InputField
+                                label="Téléphone"
+                                type="tel"
+                                value={profileForm.phone}
+                                onChange={(value) => setProfileForm((previous) => ({ ...previous, phone: value }))}
+                                placeholder="+212 6XX XXX XXX"
+                              />
                             </div>
-
-                            <InputField
-                              label="Téléphone"
-                              type="tel"
-                              value={profileForm.phone}
-                              onChange={(value) => setProfileForm((previous) => ({ ...previous, phone: value }))}
-                              placeholder="+212 6XX XXX XXX"
-                            />
 
                             <TextAreaField
                               label="Bio / Présentation"
@@ -1378,7 +1383,20 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
               label={editingCourse ? 'Remplacer le PDF (optionnel)' : 'Document PDF'}
               helper="PDF uniquement - max 20 Mo"
               accept="application/pdf"
-              onChange={(file) => setCourseFile(file)}
+              onChange={(file) => {
+                if (file) {
+                  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+                    pushToast('error', 'Le fichier doit être au format PDF.')
+                    return false
+                  }
+                  if (file.size > 20 * 1024 * 1024) {
+                    pushToast('error', 'Le fichier ne doit pas dépasser 20 Mo.')
+                    return false
+                  }
+                }
+                setCourseFile(file)
+                return true
+              }}
             />
             <ModalActions
               saving={saving}
@@ -1421,7 +1439,20 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
               label={editingPractical ? 'Remplacer le PDF (optionnel)' : 'Document PDF du TP'}
               helper="PDF uniquement - max 20 Mo"
               accept="application/pdf"
-              onChange={(file) => setPracticalFile(file)}
+              onChange={(file) => {
+                if (file) {
+                  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+                    pushToast('error', 'Le fichier doit être au format PDF.')
+                    return false
+                  }
+                  if (file.size > 20 * 1024 * 1024) {
+                    pushToast('error', 'Le fichier ne doit pas dépasser 20 Mo.')
+                    return false
+                  }
+                }
+                setPracticalFile(file)
+                return true
+              }}
             />
             <ModalActions
               saving={saving}
@@ -1473,7 +1504,20 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
               label={editingAssessment ? 'Remplacer le PDF (optionnel)' : 'Document PDF du contrôle'}
               helper="PDF uniquement - max 20 Mo"
               accept="application/pdf"
-              onChange={(file) => setAssessmentFile(file)}
+              onChange={(file) => {
+                if (file) {
+                  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+                    pushToast('error', 'Le fichier doit être au format PDF.')
+                    return false
+                  }
+                  if (file.size > 20 * 1024 * 1024) {
+                    pushToast('error', 'Le fichier ne doit pas dépasser 20 Mo.')
+                    return false
+                  }
+                }
+                setAssessmentFile(file)
+                return true
+              }}
             />
             <ModalActions
               saving={saving}
@@ -2215,8 +2259,13 @@ function FileField({ label, helper, accept, onChange }) {
         accept={accept}
         onChange={(event) => {
           const file = event.target.files?.[0] ?? null
-          setFileName(file?.name ?? '')
-          onChange(file)
+          const success = onChange(file)
+          if (success !== false) {
+            setFileName(file?.name ?? '')
+          } else {
+            event.target.value = ''
+            setFileName('')
+          }
         }}
         className="block w-full rounded-2xl border-2 border-dashed border-slate-300 bg-white px-4 py-4 text-sm text-slate-700 shadow-sm file:mr-4 file:rounded-xl file:border-0 file:bg-orange-500 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:border-orange-300 hover:file:bg-orange-600 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
       />
@@ -2343,11 +2392,15 @@ function formatDate(value) {
 function validateProfileForm(form) {
   const errors = {}
 
-  if (!form.name.trim()) {
-    errors.name = 'Le nom complet est obligatoire.'
+  if (!form.first_name || !form.first_name.trim()) {
+    errors.first_name = 'Le prénom est obligatoire.'
   }
 
-  if (!form.email.trim()) {
+  if (!form.last_name || !form.last_name.trim()) {
+    errors.last_name = 'Le nom est obligatoire.'
+  }
+
+  if (!form.email || !form.email.trim()) {
     errors.email = "L'adresse email est obligatoire."
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
     errors.email = 'Veuillez saisir une adresse email valide.'

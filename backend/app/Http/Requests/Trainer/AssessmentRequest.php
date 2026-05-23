@@ -56,11 +56,11 @@ class AssessmentRequest extends FormRequest
             ],
             'title' => ['required', 'string', 'max:255'],
             'format' => ['required', Rule::in(['quiz', 'exam', 'project_review'])],
-            'document' => [
+            'file' => [
                 $this->isMethod('post') ? 'required' : 'nullable',
                 'file',
-                'mimetypes:application/pdf',
-                'max:512000',
+                'mimes:pdf',
+                'max:20480',
             ],
             'scheduled_at' => ['nullable', 'date'],
             'duration_minutes' => ['required', 'integer', 'min:1'],

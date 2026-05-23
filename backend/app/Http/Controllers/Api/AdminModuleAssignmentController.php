@@ -16,7 +16,7 @@ class AdminModuleAssignmentController extends Controller
     {
         return response()->json([
             'history' => TrainerModuleAssignment::query()
-                ->with(['trainer:id,name,email', 'module:id,title', 'admin:id,name'])
+                ->with(['trainer:id,first_name,last_name,email', 'module:id,title', 'admin:id,first_name,last_name'])
                 ->latest('assigned_at')
                 ->limit(200)
                 ->get(),
@@ -82,7 +82,7 @@ class AdminModuleAssignmentController extends Controller
     private function history()
     {
         return TrainerModuleAssignment::query()
-            ->with(['trainer:id,name,email', 'module:id,title', 'admin:id,name'])
+            ->with(['trainer:id,first_name,last_name,email', 'module:id,title', 'admin:id,first_name,last_name'])
             ->latest('assigned_at')
             ->limit(200)
             ->get();

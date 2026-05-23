@@ -19,7 +19,7 @@ class AssessmentController extends Controller
         $query = Assessment::query()->with([
             'module:id,title',
             'course:id,title,module_id',
-            'trainer:id,name',
+            'trainer:id,first_name,last_name',
         ]);
 
         if ($request->user()?->role === 'trainer') {
@@ -62,18 +62,19 @@ class AssessmentController extends Controller
         return response()->json($this->serializeAssessment($assessment->load([
             'module:id,title',
             'course:id,title,module_id',
-            'trainer:id,name',
+            'trainer:id,first_name,last_name',
         ])), 201);
     }
 
     public function show(Request $request, Assessment $assessment): JsonResponse
     {
         $this->authorizeTrainerOwnership($request, $assessment->trainer_id);
+        $this->authorizeStudentAccess($request, $assessment);
 
         return response()->json($this->serializeAssessment($assessment->load([
             'module:id,title,description',
             'course:id,title,module_id',
-            'trainer:id,name,email',
+            'trainer:id,first_name,last_name,email',
         ])));
     }
 
@@ -96,7 +97,7 @@ class AssessmentController extends Controller
             'total_points' => (int) $data['total_points'],
         ];
 
-        if ($request->hasFile('document')) {
+        if ($request->hasFile('file')) {
             $this->deleteDocument($assessment);
             $attributes = [...$attributes, ...$this->storeDocument($request, $trainerId)];
         }
@@ -106,7 +107,7 @@ class AssessmentController extends Controller
         return response()->json($this->serializeAssessment($assessment->load([
             'module:id,title',
             'course:id,title,module_id',
-            'trainer:id,name',
+            'trainer:id,first_name,last_name',
         ])));
     }
 
@@ -119,27 +120,29 @@ class AssessmentController extends Controller
         return response()->json(['message' => 'Assessment deleted.']);
     }
 
-    public function preview(Request $request, Assessment $assessment): StreamedResponse
+    public function preview(Request $request, Assessment $assessment): \Symfony\Component\HttpFoundation\Response
     {
         $this->authorizeTrainerOwnership($request, $assessment->trainer_id);
         $this->authorizeStudentAccess($request, $assessment);
         abort_unless($assessment->hasDocument(), 404);
 
-        return Storage::disk($assessment->document_disk)->response(
-            $assessment->document_path,
-            $assessment->document_name,
-            [
-                'Content-Type' => $assessment->document_mime_type ?: 'application/pdf',
-                'Content-Disposition' => 'inline; filename="'.$assessment->document_name.'"',
-            ]
-        );
+        $path = Storage::disk($assessment->document_disk)->path($assessment->document_path);
+        abort_unless(file_exists($path), 404, "Le fichier demandé n'existe pas.");
+
+        return response()->file($path, [
+            'Content-Type' => $assessment->document_mime_type ?: 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.$assessment->document_name.'"',
+        ]);
     }
 
-    public function download(Request $request, Assessment $assessment): StreamedResponse
+    public function download(Request $request, Assessment $assessment): \Symfony\Component\HttpFoundation\Response
     {
         $this->authorizeTrainerOwnership($request, $assessment->trainer_id);
         $this->authorizeStudentAccess($request, $assessment);
         abort_unless($assessment->hasDocument(), 404);
+
+        $path = Storage::disk($assessment->document_disk)->path($assessment->document_path);
+        abort_unless(file_exists($path), 404, "Le fichier demandé n'existe pas.");
 
         if ($request->user() && $request->user()->role === 'trainee') {
             try {
@@ -155,25 +158,42 @@ class AssessmentController extends Controller
             }
         }
 
-        return Storage::disk($assessment->document_disk)->download(
-            $assessment->document_path,
-            $assessment->document_name,
-            ['Content-Type' => $assessment->document_mime_type ?: 'application/pdf']
-        );
+        return response()->download($path, $assessment->document_name, [
+            'Content-Type' => $assessment->document_mime_type ?: 'application/pdf',
+        ]);
     }
 
-    private function getDownloadStats(string $type, int $id, int $yearLevel): array
+    private function getDownloadStats(string $type, int $id, int $yearLevel, ?string $option = null): array
     {
-        $totalTrainees = \App\Models\User::query()
-            ->where('role', 'trainee')
-            ->where('specialty', $yearLevel === 2 ? 'like' : 'like', $yearLevel === 2 ? '%2%' : '%1%')
-            ->count();
+        static $traineeCountCache = [];
+        static $downloadCountsCache = null;
 
-        $downloadedCount = \DB::table('document_downloads')
-            ->where('downloadable_type', $type)
-            ->where('downloadable_id', $id)
-            ->count();
+        $cacheKey = "{$yearLevel}-" . ($option ?: 'null');
 
+        if (!isset($traineeCountCache[$cacheKey])) {
+            $traineeQuery = \App\Models\User::query()
+                ->where('role', 'trainee')
+                ->where('specialty', $yearLevel === 2 ? 'like' : 'like', $yearLevel === 2 ? '%2%' : '%1%');
+
+            if ($yearLevel === 2 && $option) {
+                $traineeQuery->where('specialty', 'like', "%{$option}%");
+            }
+
+            $traineeCountCache[$cacheKey] = $traineeQuery->count();
+        }
+
+        $totalTrainees = $traineeCountCache[$cacheKey];
+
+        if ($downloadCountsCache === null) {
+            $downloadCountsCache = \DB::table('document_downloads')
+                ->where('downloadable_type', $type)
+                ->selectRaw('downloadable_id, count(*) as count')
+                ->groupBy('downloadable_id')
+                ->pluck('count', 'downloadable_id')
+                ->toArray();
+        }
+
+        $downloadedCount = $downloadCountsCache[$id] ?? 0;
         $percentage = $totalTrainees > 0 ? (int) round(($downloadedCount / $totalTrainees) * 100) : 0;
 
         return [
@@ -204,7 +224,7 @@ class AssessmentController extends Controller
                 'preview_url' => "/api/assessments/{$assessment->id}/preview",
                 'download_url' => "/api/assessments/{$assessment->id}/download",
             ] : null,
-            'download_stats' => $this->getDownloadStats(Assessment::class, $assessment->id, $assessment->module?->year_level ?? 1),
+            'download_stats' => $this->getDownloadStats(Assessment::class, $assessment->id, $assessment->module?->year_level ?? 1, $assessment->module?->option),
             'created_at' => $assessment->created_at,
         ];
     }
@@ -218,26 +238,80 @@ class AssessmentController extends Controller
 
     private function authorizeStudentAccess(Request $request, Assessment $assessment): void
     {
-        // Trainees can access any assessment
+        if ($request->user()?->role === 'trainee') {
+            $specialty = (string) $request->user()->specialty;
+            $yearLevel = str_contains($specialty, '2') ? 2 : 1;
+
+            $option = null;
+            if ($yearLevel === 2) {
+                if (str_contains($specialty, 'Full Stack')) {
+                    $option = 'Full Stack';
+                } elseif (str_contains($specialty, 'Mobile')) {
+                    $option = 'Mobile';
+                } elseif (str_contains($specialty, 'RV/RA')) {
+                    $option = 'RV/RA';
+                }
+            }
+
+            $hasAccess = $assessment->module()
+                ->where('year_level', $yearLevel)
+                ->where(function ($q) use ($option) {
+                    $q->whereNull('option')
+                      ->orWhere('option', $option);
+                })
+                ->exists();
+
+            abort_unless($hasAccess, 403, "Vous n'avez pas accès à ce contrôle.");
+        }
     }
 
     private function storeDocument(AssessmentRequest $request, int $trainerId): array
     {
-        if (! $request->hasFile('document')) {
+        if (! $request->hasFile('file')) {
             return [];
         }
 
-        $file = $request->file('document');
-        $directory = "assessments/{$trainerId}";
-        $path = Storage::disk('local')->putFileAs($directory, $file, Str::uuid()->toString().'.'.$file->extension());
+        try {
+            $file = $request->file('file');
+            \Log::info('Assessment PDF Upload initiated', [
+                'trainer_id' => $trainerId,
+                'name' => $file->getClientOriginalName(),
+                'size' => $file->getSize(),
+                'mime' => $file->getClientMimeType()
+            ]);
 
-        return [
-            'document_disk' => 'local',
-            'document_path' => $path,
-            'document_name' => $file->getClientOriginalName(),
-            'document_mime_type' => $file->getClientMimeType(),
-            'document_size' => $file->getSize(),
-        ];
+            $publicUploadsDir = storage_path('app/public/uploads');
+            if (!file_exists($publicUploadsDir)) {
+                mkdir($publicUploadsDir, 0755, true);
+                \Log::info('Created uploads directory automatically in public disk root');
+            }
+
+            $path = $file->store('uploads', 'public');
+            $fullPath = storage_path('app/public/' . $path);
+            $fileExists = file_exists($fullPath);
+
+            \Log::info('Assessment PDF Upload completed successfully', [
+                'generated_path' => $path,
+                'absolute_path' => $fullPath,
+                'file_exists_on_disk' => $fileExists,
+                'saved_file_size' => $fileExists ? filesize($fullPath) : 0
+            ]);
+
+            return [
+                'document_disk' => 'public',
+                'document_path' => $path,
+                'document_name' => $file->getClientOriginalName(),
+                'document_mime_type' => $file->getClientMimeType(),
+                'document_size' => $file->getSize(),
+            ];
+        } catch (\Exception $e) {
+            \Log::error('Assessment PDF Upload failed', [
+                'trainer_id' => $trainerId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
+        }
     }
 
     private function deleteDocument(Assessment $assessment): void
