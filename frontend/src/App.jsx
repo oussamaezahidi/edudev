@@ -84,7 +84,6 @@ const emptyAssessment = {
 }
 
 function App() {
-  const [csrfToken, setCsrfToken] = useState('')
   const [user, setUser] = useState(() => readStoredUser())
   const [dashboard, setDashboard] = useState(null)
   const [resources, setResources] = useState(emptyResources)
