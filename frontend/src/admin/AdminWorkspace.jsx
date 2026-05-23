@@ -52,39 +52,16 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
   const [trainerFilter, setTrainerFilter] = useState('all')
   const [page, setPage] = useState(1)
   const [preview, setPreview] = useState(null)
-  const [data, setData] = useState(() => {
-    const defaultValue = {
-      dashboard: null,
-      users: [],
-      modules: [],
-      courses: [],
-      practicalWorks: [],
-      assessments: [],
-      profile: user,
-      settings: defaultSettings,
-      assignmentHistory: [],
-    }
-    try {
-      const cached = window.localStorage.getItem('edudev.admin.cache')
-      if (cached) {
-        const parsed = JSON.parse(cached)
-        if (parsed && typeof parsed === 'object') {
-          return {
-            ...defaultValue,
-            ...parsed,
-            users: parsed.users || [],
-            modules: parsed.modules || [],
-            courses: parsed.courses || [],
-            practicalWorks: parsed.practicalWorks || [],
-            assessments: parsed.assessments || [],
-            assignmentHistory: parsed.assignmentHistory || [],
-          }
-        }
-      }
-      return defaultValue
-    } catch {
-      return defaultValue
-    }
+  const [data, setData] = useState({
+    dashboard: null,
+    users: [],
+    modules: [],
+    courses: [],
+    practicalWorks: [],
+    assessments: [],
+    profile: user,
+    settings: defaultSettings,
+    assignmentHistory: [],
   })
   const [modals, setModals] = useState({ user: false, module: false, password: false })
   const [editingUser, setEditingUser] = useState(null)
@@ -154,10 +131,7 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
   const stats = data.dashboard?.stats ?? {}
 
   async function loadAdmin({ silent = false } = {}) {
-    const hasCache = !!window.localStorage.getItem('edudev.admin.cache')
-    if (silent || hasCache) {
-      // Silent load in background, do not block UI with loader
-    } else {
+    if (!silent) {
       setLoading(true)
     }
     setError('')
@@ -177,7 +151,6 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
 
       const nextData = { dashboard, users, modules, courses, practicalWorks, assessments, profile: profile.user, settings: settings.settings, assignmentHistory: assignments.history ?? [] }
       setData(nextData)
-      window.localStorage.setItem('edudev.admin.cache', JSON.stringify(nextData))
       setProfileForm({ name: profile.user.name, email: profile.user.email, avatar: null })
       setSettingsForm(settings.settings)
       onSettingsChange?.(settings.settings)

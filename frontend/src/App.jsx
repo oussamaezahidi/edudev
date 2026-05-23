@@ -214,6 +214,7 @@ function App() {
 
       if (!meResponse.user) {
         clearStoredUser()
+        clearWorkspaceCaches()
         setUser(null)
         setDashboard(null)
         setResources(emptyResources)
@@ -229,6 +230,7 @@ function App() {
     } catch (requestError) {
       if ([401, 419].includes(requestError.status)) {
         clearStoredUser()
+        clearWorkspaceCaches()
         setUser(null)
         setDashboard(null)
         setResources(emptyResources)
@@ -374,6 +376,7 @@ function App() {
       if (response.status === 403 && ['Your account has been deactivated.', 'Votre compte a été désactivé.'].includes(data?.message)) {
         setCsrfToken('')
         clearStoredUser()
+        clearWorkspaceCaches()
         setUser(null)
         setDashboard(null)
         setResources(emptyResources)
@@ -425,6 +428,7 @@ function App() {
 
       setCsrfToken('')
       storeUser(data.user)
+      clearWorkspaceCaches()
       setUser(data.user)
       window.history.replaceState(null, '', '/dashboard')
       await loadRoleData(data.user)
@@ -449,6 +453,7 @@ function App() {
 
       setCsrfToken('')
       storeUser(data.user)
+      clearWorkspaceCaches()
       setUser(data.user)
       window.history.replaceState(null, '', '/dashboard')
       await loadRoleData(data.user)
@@ -469,6 +474,7 @@ function App() {
 
     setCsrfToken('')
     clearStoredUser()
+    clearWorkspaceCaches()
     setUser(null)
     setDashboard(null)
     setResources(emptyResources)
@@ -1709,6 +1715,12 @@ function storeUser(user) {
 
 function clearStoredUser() {
   window.localStorage.removeItem(AUTH_USER_KEY)
+}
+
+function clearWorkspaceCaches() {
+  window.localStorage.removeItem('edudev.admin.cache')
+  window.localStorage.removeItem('edudev.trainer.cache')
+  window.localStorage.removeItem('edudev.trainee.cache')
 }
 
 

@@ -52,36 +52,15 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
   const [darkMode, setDarkMode] = useState(() => getEffectiveDarkMode(settings, user))
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [activeSection, setActiveSection] = useState(() => window.localStorage.getItem('edudev.trainer.activeTab') || 'dashboard')
-  const [loading, setLoading] = useState(() => !window.localStorage.getItem('edudev.trainer.cache'))
+  const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [workspace, setWorkspace] = useState(() => {
-    const defaultValue = {
-      dashboard: null,
-      modules: [],
-      courses: [],
-      practicalWorks: [],
-      assessments: [],
-    }
-    try {
-      const cached = window.localStorage.getItem('edudev.trainer.cache')
-      if (cached) {
-        const parsed = JSON.parse(cached)
-        if (parsed && typeof parsed === 'object') {
-          return {
-            ...defaultValue,
-            ...parsed,
-            modules: parsed.modules || [],
-            courses: parsed.courses || [],
-            practicalWorks: parsed.practicalWorks || [],
-            assessments: parsed.assessments || [],
-          }
-        }
-      }
-      return defaultValue
-    } catch {
-      return defaultValue
-    }
+  const [workspace, setWorkspace] = useState({
+    dashboard: null,
+    modules: [],
+    courses: [],
+    practicalWorks: [],
+    assessments: [],
   })
   const [courseForm, setCourseForm] = useState(emptyCourseForm)
   const [courseFile, setCourseFile] = useState(null)
@@ -251,8 +230,7 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
   }
 
   async function loadWorkspace({ silent = false } = {}) {
-    const hasCache = !!window.localStorage.getItem('edudev.trainer.cache')
-    if (silent || hasCache) {
+    if (silent) {
       setRefreshing(true)
     } else {
       setLoading(true)
@@ -276,7 +254,6 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
         assessments,
       }
       setWorkspace(nextWorkspace)
-      window.localStorage.setItem('edudev.trainer.cache', JSON.stringify(nextWorkspace))
       if (profile?.user) {
         setProfileUser(profile.user)
         setProfileForm({
@@ -2575,7 +2552,6 @@ function resolveApiUrl(url) {
   }
   return url
 }
-
 
 
 

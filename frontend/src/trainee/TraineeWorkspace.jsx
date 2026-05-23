@@ -27,7 +27,7 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
   const [active, setActive] = useState(() => window.localStorage.getItem('edudev.trainee.activeTab') || 'dashboard')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [darkMode, setDarkMode] = useState(() => getEffectiveDarkMode(settings, user))
-  const [loading, setLoading] = useState(() => !window.localStorage.getItem('edudev.trainee.cache'))
+  const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [toasts, setToasts] = useState([])
@@ -39,33 +39,12 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
     type: 'all',
     sort: 'recent',
   })
-  const [data, setData] = useState(() => {
-    const defaultValue = {
-      dashboard: null,
-      modules: [],
-      courses: [],
-      practicalWorks: [],
-      assessments: [],
-    }
-    try {
-      const cached = window.localStorage.getItem('edudev.trainee.cache')
-      if (cached) {
-        const parsed = JSON.parse(cached)
-        if (parsed && typeof parsed === 'object') {
-          return {
-            ...defaultValue,
-            ...parsed,
-            modules: parsed.modules || [],
-            courses: parsed.courses || [],
-            practicalWorks: parsed.practicalWorks || [],
-            assessments: parsed.assessments || [],
-          }
-        }
-      }
-      return defaultValue
-    } catch {
-      return defaultValue
-    }
+  const [data, setData] = useState({
+    dashboard: null,
+    modules: [],
+    courses: [],
+    practicalWorks: [],
+    assessments: [],
   })
   const [profileUser, setProfileUser] = useState(user)
   const [profileForm, setProfileForm] = useState(() => {
@@ -204,8 +183,7 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
   }
 
   async function loadWorkspace({ silent = false } = {}) {
-    const hasCache = !!window.localStorage.getItem('edudev.trainee.cache')
-    if (silent || hasCache) {
+    if (silent) {
       setRefreshing(true)
     } else {
       setLoading(true)
@@ -222,7 +200,6 @@ export default function TraineeWorkspace({ user, api, onLogout, settings = null 
       ])
 
       setData({ dashboard, modules, courses, practicalWorks, assessments })
-      window.localStorage.setItem('edudev.trainee.cache', JSON.stringify({ dashboard, modules, courses, practicalWorks, assessments }))
 
       if (profile?.user) {
         setProfileUser(profile.user)
