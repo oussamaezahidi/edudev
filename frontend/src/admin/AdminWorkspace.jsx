@@ -817,7 +817,7 @@ function AssignmentPage({ trainers, modules, history = [], form, saving, onTrain
             {selectedTrainer?.modules?.length ? selectedTrainer.modules.map((module) => (
               <span key={module.id} className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
                 {module.title}
-                <button type="button" className="text-rose-500" onClick={() => onRemove(selectedTrainer.id, module.id)} disabled={saving}>Retirer</button>
+                <button type="button" className="text-rose-500 hover:text-rose-700 hover:underline transition-all duration-200" onClick={() => onRemove(selectedTrainer.id, module.id)} disabled={saving}>Retirer</button>
               </span>
             )) : <span className="text-sm text-slate-500">Aucun module affecté.</span>}
           </div>
