@@ -25,6 +25,7 @@ class CourseRequest extends FormRequest
     public function rules(): array
     {
         $user = $this->user();
+        $maxPdfSize = (\App\Models\PlatformSetting::allGrouped()['files']['pdf_max_size'] ?? 20) * 1024; // in kilobytes
 
         return [
             'module_id' => [
@@ -50,7 +51,7 @@ class CourseRequest extends FormRequest
                 $this->isMethod('post') ? 'required' : 'nullable',
                 'file',
                 'mimes:pdf',
-                'max:20480',
+                'max:' . $maxPdfSize,
             ],
         ];
     }

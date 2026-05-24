@@ -52,6 +52,8 @@ const emptyPasswordForm = {
 
 export default function TrainerWorkspace({ user, api, onLogout, settings = null }) {
   const [darkMode, setDarkMode] = useState(() => getEffectiveDarkMode(settings, user))
+  const maxPdfSizeMo = settings?.files?.pdf_max_size ?? 20
+  const maxPdfSizeBytes = maxPdfSizeMo * 1024 * 1024
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [activeSection, setActiveSection] = useState('dashboard')
   const [loading, setLoading] = useState(true)
@@ -1395,7 +1397,7 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
             </div>
             <FileField
               label={editingCourse ? 'Remplacer le PDF (optionnel)' : 'Document PDF'}
-              helper="PDF uniquement - max 20 Mo"
+              helper={`PDF uniquement - max ${maxPdfSizeMo} Mo`}
               accept="application/pdf"
               onChange={(file) => {
                 if (file) {
@@ -1403,8 +1405,8 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
                     pushToast('error', 'Le fichier doit être au format PDF.')
                     return false
                   }
-                  if (file.size > 20 * 1024 * 1024) {
-                    pushToast('error', 'Le fichier ne doit pas dépasser 20 Mo.')
+                  if (file.size > maxPdfSizeBytes) {
+                    pushToast('error', `Le fichier ne doit pas dépasser ${maxPdfSizeMo} Mo.`)
                     return false
                   }
                 }
@@ -1451,7 +1453,7 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
             />
             <FileField
               label={editingPractical ? 'Remplacer le PDF (optionnel)' : 'Document PDF du TP'}
-              helper="PDF uniquement - max 20 Mo"
+              helper={`PDF uniquement - max ${maxPdfSizeMo} Mo`}
               accept="application/pdf"
               onChange={(file) => {
                 if (file) {
@@ -1459,8 +1461,8 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
                     pushToast('error', 'Le fichier doit être au format PDF.')
                     return false
                   }
-                  if (file.size > 20 * 1024 * 1024) {
-                    pushToast('error', 'Le fichier ne doit pas dépasser 20 Mo.')
+                  if (file.size > maxPdfSizeBytes) {
+                    pushToast('error', `Le fichier ne doit pas dépasser ${maxPdfSizeMo} Mo.`)
                     return false
                   }
                 }
@@ -1516,7 +1518,7 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
             />
             <FileField
               label={editingAssessment ? 'Remplacer le PDF (optionnel)' : 'Document PDF du contrôle'}
-              helper="PDF uniquement - max 20 Mo"
+              helper={`PDF uniquement - max ${maxPdfSizeMo} Mo`}
               accept="application/pdf"
               onChange={(file) => {
                 if (file) {
@@ -1524,8 +1526,8 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
                     pushToast('error', 'Le fichier doit être au format PDF.')
                     return false
                   }
-                  if (file.size > 20 * 1024 * 1024) {
-                    pushToast('error', 'Le fichier ne doit pas dépasser 20 Mo.')
+                  if (file.size > maxPdfSizeBytes) {
+                    pushToast('error', `Le fichier ne doit pas dépasser ${maxPdfSizeMo} Mo.`)
                     return false
                   }
                 }

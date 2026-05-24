@@ -25,6 +25,7 @@ class PracticalWorkRequest extends FormRequest
     public function rules(): array
     {
         $user = $this->user();
+        $maxPdfSize = (\App\Models\PlatformSetting::allGrouped()['files']['pdf_max_size'] ?? 20) * 1024; // in kilobytes
 
         return [
             'course_id' => [
@@ -48,7 +49,7 @@ class PracticalWorkRequest extends FormRequest
                 $this->isMethod('post') ? 'required' : 'nullable',
                 'file',
                 'mimes:pdf',
-                'max:20480',
+                'max:' . $maxPdfSize,
             ],
             'due_at' => ['nullable', 'date'],
         ];

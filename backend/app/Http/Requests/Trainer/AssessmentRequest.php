@@ -27,6 +27,7 @@ class AssessmentRequest extends FormRequest
     public function rules(): array
     {
         $user = $this->user();
+        $maxPdfSize = (\App\Models\PlatformSetting::allGrouped()['files']['pdf_max_size'] ?? 20) * 1024; // in kilobytes
 
         return [
             'module_id' => [
@@ -60,7 +61,7 @@ class AssessmentRequest extends FormRequest
                 $this->isMethod('post') ? 'required' : 'nullable',
                 'file',
                 'mimes:pdf',
-                'max:20480',
+                'max:' . $maxPdfSize,
             ],
             'scheduled_at' => ['nullable', 'date'],
             'duration_minutes' => ['required', 'integer', 'min:1'],
