@@ -6,6 +6,12 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Install pdo_mysql and other required extensions
 RUN install-php-extensions pdo_mysql pdo mysqli mbstring xml curl zip bcmath tokenizer ctype fileinfo
 
+# Increase PHP upload and memory limits in php.ini
+RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" && \
+    sed -i 's/upload_max_filesize = 2M/upload_max_filesize = 100M/g' "$PHP_INI_DIR/php.ini" && \
+    sed -i 's/post_max_size = 8M/post_max_size = 100M/g' "$PHP_INI_DIR/php.ini" && \
+    sed -i 's/memory_limit = 128M/memory_limit = 512M/g' "$PHP_INI_DIR/php.ini"
+
 
 WORKDIR /app
 

@@ -318,6 +318,12 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
 
   async function submitCourse(event) {
     event.preventDefault()
+
+    if (!editingCourse && !courseFile) {
+      pushToast('error', 'Veuillez sélectionner un document PDF pour le cours.')
+      return
+    }
+
     setSaving(true)
 
     try {
@@ -360,6 +366,12 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
 
   async function submitPractical(event) {
     event.preventDefault()
+
+    if (!editingPractical && !practicalFile) {
+      pushToast('error', 'Veuillez sélectionner un document PDF pour le TP.')
+      return
+    }
+
     setSaving(true)
 
     try {
@@ -389,6 +401,12 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
 
   async function submitAssessment(event) {
     event.preventDefault()
+
+    if (!editingAssessment && !assessmentFile) {
+      pushToast('error', 'Veuillez sélectionner un document PDF pour le contrôle.')
+      return
+    }
+
     setSaving(true)
 
     try {
