@@ -33,6 +33,7 @@ Route::post('/refresh', [AuthController::class, 'refresh']);
 Route::get('/catalog/courses', [CatalogController::class, 'index']);
 Route::get('/catalog/courses/{course}', [CatalogController::class, 'show']);
 Route::get('/settings', [AdminSettingsController::class, 'show']);
+Route::get('/profile/avatar/{user}', [ProfileController::class, 'avatar']);
 
 /*
 |--------------------------------------------------------------------------
@@ -47,7 +48,6 @@ Route::middleware(['auth.jwt'])->group(function (): void {
     Route::get('/profile', [ProfileController::class, 'show']);
     Route::post('/profile', [ProfileController::class, 'update']);
     Route::put('/profile/password', [ProfileController::class, 'password']);
-    Route::get('/profile/avatar/{user}', [ProfileController::class, 'avatar']);
     
     Route::get('/courses', [CourseController::class, 'index'])->middleware('role:admin,trainer,trainee');
     Route::get('/courses/{course}', [CourseController::class, 'show'])->middleware('role:admin,trainer,trainee');
