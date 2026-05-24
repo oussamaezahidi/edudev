@@ -1050,37 +1050,46 @@ function ResourceCard({ resource, onPreview, onDownload }) {
       </div>
 
       <div className="border-t border-slate-100 bg-slate-50/70 p-6 dark:border-slate-800/80 dark:bg-slate-950/40">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-
-          <div className="flex-1 min-w-0 pr-4">
+        <div className="flex flex-col gap-4 w-full">
+          <div className="min-w-0 w-full">
             <div className="flex items-center justify-between text-xs mb-1.5">
-              <div className="flex items-center gap-1.5">
-                <span className="font-semibold text-slate-500 dark:text-slate-400">Engagement des téléchargements :</span>
-                <span className={`font-bold ${theme.textAccent}`}>{stats.percentage}%</span>
-              </div>
+              <span className="font-semibold text-slate-500 dark:text-slate-400">
+                Engagement des téléchargements
+              </span>
+              <span className={`font-bold ${theme.textAccent}`}>{stats.percentage}%</span>
             </div>
+            
             <div className="w-full bg-slate-200 dark:bg-slate-800 h-2 rounded-full overflow-hidden relative shadow-inner">
               <div
                 className={`h-full rounded-full transition-all duration-500 ${theme.progress}`}
                 style={{ width: `${stats.percentage}%` }}
               ></div>
             </div>
-            <div className="mt-1.5 flex flex-col gap-0.5">
-              <span className="block text-[10px] font-medium text-slate-400 dark:text-slate-500">
-                {stats.count} apprenant{stats.count > 1 ? 's' : ''} ont téléchargé {isCourse ? 'le cours' : isTp ? 'le TP' : 'le contrôle'}
-              </span>
-              <span className="block text-[10px] font-medium text-slate-400 dark:text-slate-500">
-                Dernier téléchargement : {formatRelativeTime(stats.lastDownloadAt || stats.last_download_at)}
-              </span>
+            
+            <div className="mt-3 flex flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              <div className="flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-orange-400"></span>
+                <span>
+                  <strong className="text-slate-850 dark:text-slate-250">{stats.count}</strong> apprenant{stats.count > 1 ? 's' : ''} ont téléchargé {isCourse ? 'le cours' : isTp ? 'le TP' : 'le contrôle'}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-slate-450 dark:bg-slate-500"></span>
+                <span>
+                  Dernier téléchargement : <strong className="text-slate-850 dark:text-slate-250">{formatRelativeTime(stats.lastDownloadAt || stats.last_download_at)}</strong>
+                </span>
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="border-t border-slate-200/60 dark:border-slate-800/60 my-0.5"></div>
+
+          <div className="grid grid-cols-2 gap-2.5 w-full">
             <button
               type="button"
               disabled={!resource.document}
               onClick={() => onPreview(resource)}
-              className={`h-10 rounded-2xl border px-4 text-xs font-bold transition-all duration-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center gap-1.5 ${theme.btnSecondary}`}
+              className={`h-10 rounded-xl border px-3 text-xs font-bold transition-all duration-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center gap-1.5 ${theme.btnSecondary} w-full`}
             >
               <EyeIcon className="h-3.5 w-3.5" />
               Aperçu
@@ -1089,7 +1098,7 @@ function ResourceCard({ resource, onPreview, onDownload }) {
               type="button"
               disabled={!resource.document}
               onClick={() => onDownload(resource)}
-              className={`h-10 rounded-2xl px-4 text-xs font-bold shadow-lg transition-all duration-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center gap-1.5 ${theme.btnPrimary}`}
+              className={`h-10 rounded-xl shadow-md transition-all duration-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center gap-1.5 ${theme.btnPrimary} w-full`}
             >
               <DownloadIcon className="h-3.5 w-3.5" />
               Télécharger
