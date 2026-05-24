@@ -24,6 +24,30 @@ const emptyPasswordForm = {
   password_confirmation: '',
 }
 
+function formatRelativeTime(dateString) {
+  if (!dateString) return 'Aucun'
+  try {
+    const cleanDate = dateString.replace(' ', 'T')
+    const date = new Date(cleanDate)
+    const now = new Date()
+    const diffMs = now - date
+    if (isNaN(diffMs) || diffMs < 0) return 'il y a quelques secondes'
+    
+    const diffMins = Math.floor(diffMs / 60000)
+    if (diffMins < 1) return 'il y a quelques secondes'
+    if (diffMins < 60) return `il y a ${diffMins} min`
+    
+    const diffHours = Math.floor(diffMins / 60)
+    if (diffHours < 24) return `il y a ${diffHours} h`
+    
+    const diffDays = Math.floor(diffHours / 24)
+    return `il y a ${diffDays} jour${diffDays > 1 ? 's' : ''}`
+  } catch (e) {
+    return 'Non disponible'
+  }
+}
+
+
 export default function TraineeWorkspace({ user, api, onLogout, settings = null }) {
   const [active, setActive] = useState('dashboard')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -1031,7 +1055,7 @@ function ResourceCard({ resource, onPreview, onDownload }) {
           <div className="flex-1 min-w-0 pr-4">
             <div className="flex items-center justify-between text-xs mb-1.5">
               <div className="flex items-center gap-1.5">
-                <span className="font-semibold text-slate-500 dark:text-slate-400">Taux d'accès :</span>
+                <span className="font-semibold text-slate-500 dark:text-slate-400">Engagement des téléchargements :</span>
                 <span className={`font-bold ${theme.textAccent}`}>{stats.percentage}%</span>
               </div>
             </div>
@@ -1041,9 +1065,14 @@ function ResourceCard({ resource, onPreview, onDownload }) {
                 style={{ width: `${stats.percentage}%` }}
               ></div>
             </div>
-            <span className="mt-1 block text-[10px] font-medium text-slate-400 dark:text-slate-500">
-              {stats.count} stagiaire{stats.count > 1 ? 's' : ''} unique{stats.count > 1 ? 's' : ''}
-            </span>
+            <div className="mt-1.5 flex flex-col gap-0.5">
+              <span className="block text-[10px] font-medium text-slate-400 dark:text-slate-500">
+                {stats.count} apprenant{stats.count > 1 ? 's' : ''} ont téléchargé {isCourse ? 'le cours' : isTp ? 'le TP' : 'le contrôle'}
+              </span>
+              <span className="block text-[10px] font-medium text-slate-400 dark:text-slate-500">
+                Dernier téléchargement : {formatRelativeTime(stats.lastDownloadAt || stats.last_download_at)}
+              </span>
+            </div>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">

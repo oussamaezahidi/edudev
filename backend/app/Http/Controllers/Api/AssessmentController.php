@@ -196,9 +196,17 @@ class AssessmentController extends Controller
         $downloadedCount = $downloadCountsCache[$id] ?? 0;
         $percentage = $totalTrainees > 0 ? (int) round(($downloadedCount / $totalTrainees) * 100) : 0;
 
+        $lastDownload = \DB::table('document_downloads')
+            ->where('downloadable_type', $type)
+            ->where('downloadable_id', $id)
+            ->latest('created_at')
+            ->value('created_at');
+
         return [
             'count' => $downloadedCount,
             'percentage' => min(100, $percentage),
+            'last_download_at' => $lastDownload,
+            'lastDownloadAt' => $lastDownload,
         ];
     }
 
