@@ -235,9 +235,24 @@ a,
 select,
 summary,
 [role="button"],
+.cursor-pointer,
+label[for],
+label:has(input[type="checkbox"]),
+label:has(input[type="radio"]),
 input[type="submit"],
 input[type="button"],
 input[type="checkbox"],
 input[type="radio"] {
   cursor: pointer !important;
 }
+
+/* Enforce not-allowed cursor on all disabled interactive elements */
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled,
+[disabled],
+.cursor-not-allowed {
+  cursor: not-allowed !important;
+}
+

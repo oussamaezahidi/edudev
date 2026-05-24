@@ -1211,7 +1211,7 @@ function AvatarDropzone({ user, previewUrl, file, dragging, error, onDragging, o
           {file ? (
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <span className="max-w-full truncate rounded-full bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-700 dark:bg-orange-500/10 dark:text-orange-300">{file.name}</span>
-              <button type="button" onClick={(event) => { event.preventDefault(); onClear() }} className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 transition hover:border-rose-200 hover:text-rose-600 dark:border-slate-700 dark:text-slate-300">Retirer</button>
+              <button type="button" onClick={(event) => { event.preventDefault(); onClear() }} className="cursor-pointer rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 transition-all duration-200 hover:scale-105 hover:border-rose-200 hover:text-rose-600 active:scale-95 dark:border-slate-700 dark:text-slate-300">Retirer</button>
             </div>
           ) : null}
         </div>
