@@ -691,7 +691,7 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
         <div className="flex min-h-screen">
           <aside
             className={classNames(
-              'fixed inset-y-0 left-0 z-40 w-72 h-screen max-h-screen overflow-y-auto lg:h-auto lg:max-h-none border-r border-white/50 bg-white/90 p-5 shadow-2xl shadow-slate-200/60 backdrop-blur-xl transition-transform duration-300 dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/20 lg:static lg:translate-x-0',
+              'fixed inset-y-0 left-0 z-40 w-72 h-screen max-h-screen overflow-y-auto lg:h-auto lg:max-h-none border-r border-white/50 bg-white/90 p-5 pb-28 lg:pb-5 shadow-2xl shadow-slate-200/60 backdrop-blur-xl transition-transform duration-300 dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/20 lg:static lg:translate-x-0',
               mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
             )}
           >
