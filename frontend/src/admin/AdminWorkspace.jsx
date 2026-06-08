@@ -28,6 +28,8 @@ const emptyUser = {
 const emptyModule = {
   title: '',
   description: '',
+  year_level: '',
+  option: '',
 }
 
 const defaultSettings = {
@@ -51,6 +53,9 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
   const [groupFilter, setGroupFilter] = useState('all')
   const [optionFilter, setOptionFilter] = useState('all')
   const [userSort, setUserSort] = useState('name')
+  const [moduleYearFilter, setModuleYearFilter] = useState('all')
+  const [moduleOptionFilter, setModuleOptionFilter] = useState('all')
+  const [moduleSort, setModuleSort] = useState('title')
   const [contentType, setContentType] = useState('courses')
   const [contentQuery, setContentQuery] = useState('')
   const [moduleFilter, setModuleFilter] = useState('all')
@@ -98,6 +103,8 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
       setGroupFilter('all')
       setOptionFilter('all')
       setUserSort('name')
+    } else {
+      setUserSort('group')
     }
   }, [roleFilter])
 
@@ -171,6 +178,34 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
 
     return list
   }, [data.users, query, roleFilter, groupFilter, optionFilter, userSort])
+
+  const filteredModules = useMemo(() => {
+    let list = data.modules.filter((item) => {
+      let matchesYear = true
+      if (moduleYearFilter === '1') {
+        matchesYear = item.year_level === 1
+      } else if (moduleYearFilter === '2') {
+        matchesYear = item.year_level === 2
+      }
+
+      let matchesOption = true
+      if (moduleOptionFilter !== 'all') {
+        matchesOption = item.option && item.option.toLowerCase() === moduleOptionFilter.toLowerCase()
+      }
+
+      return matchesYear && matchesOption
+    })
+
+    if (moduleSort === 'year') {
+      list = [...list].sort((a, b) => (a.year_level || 0) - (b.year_level || 0))
+    } else if (moduleSort === 'option') {
+      list = [...list].sort((a, b) => (a.option || '').localeCompare(b.option || ''))
+    } else {
+      list = [...list].sort((a, b) => a.title.localeCompare(b.title))
+    }
+
+    return list
+  }, [data.modules, moduleYearFilter, moduleOptionFilter, moduleSort])
 
   const contentItems = useMemo(() => {
     const source = contentType === 'courses' ? data.courses : contentType === 'tp' ? data.practicalWorks : data.assessments
@@ -289,6 +324,8 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
         body: JSON.stringify({
           title: moduleForm.title,
           description: moduleForm.description,
+          year_level: moduleForm.year_level ? Number(moduleForm.year_level) : null,
+          option: moduleForm.year_level === '2' && moduleForm.option ? moduleForm.option : null,
         }),
       })
       setModals((previous) => ({ ...previous, module: false }))
@@ -683,7 +720,6 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
                     <div className="flex flex-col gap-1">
                       <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Trier par</span>
                       <select className="admin-input dark:border-slate-700 dark:bg-slate-950 dark:text-white mt-1" value={userSort} onChange={(event) => setUserSort(event.target.value)}>
-                        <option value="name">Nom & Prénom</option>
                         <option value="group">Groupe (Alphabétique)</option>
                         <option value="option">Option (2ème année)</option>
                       </select>
@@ -694,7 +730,7 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
                         onClick={() => {
                           setGroupFilter('all')
                           setOptionFilter('all')
-                          setUserSort('name')
+                          setUserSort('group')
                         }}
                         className="w-full h-11 inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm transition hover:border-orange-200 hover:text-orange-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:text-orange-400 cursor-pointer"
                       >
@@ -723,14 +759,66 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
 
             {!loading && active === 'modules' ? (
               <Panel title="Modules" action={<button className="primary-admin-button" type="button" onClick={() => openModuleModal()}>Ajouter module</button>}>
+                <div className="mb-5 grid gap-4 rounded-[24px] border border-slate-200/60 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-950/40 sm:grid-cols-4 animate-fadeIn">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Filtrer par Année</span>
+                    <select className="admin-input dark:border-slate-700 dark:bg-slate-950 dark:text-white mt-1" value={moduleYearFilter} onChange={(event) => {
+                      setModuleYearFilter(event.target.value)
+                      if (event.target.value !== '2') setModuleOptionFilter('all')
+                    }}>
+                      <option value="all">Toutes les années</option>
+                      <option value="1">1ère année</option>
+                      <option value="2">2ème année</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Filtrer par Option</span>
+                    <select
+                      className="admin-input dark:border-slate-700 dark:bg-slate-950 dark:text-white mt-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={moduleYearFilter !== '2'}
+                      value={moduleOptionFilter}
+                      onChange={(event) => setModuleOptionFilter(event.target.value)}
+                    >
+                      <option value="all">{moduleYearFilter === '2' ? 'Toutes les options' : 'Non applicable'}</option>
+                      <option value="Full Stack">Full Stack</option>
+                      <option value="Mobile">Mobile</option>
+                      <option value="RV/RA">RV/RA</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Trier par</span>
+                    <select className="admin-input dark:border-slate-700 dark:bg-slate-950 dark:text-white mt-1" value={moduleSort} onChange={(event) => setModuleSort(event.target.value)}>
+                      <option value="title">Nom (Alphabétique)</option>
+                      <option value="year">Année d'études</option>
+                      <option value="option">Option</option>
+                    </select>
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModuleYearFilter('all')
+                        setModuleOptionFilter('all')
+                        setModuleSort('title')
+                      }}
+                      className="w-full h-11 inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm transition hover:border-orange-200 hover:text-orange-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:text-orange-400 cursor-pointer"
+                    >
+                      Réinitialiser filtres
+                    </button>
+                  </div>
+                </div>
                 <CardsGrid
-                  items={data.modules}
+                  items={filteredModules}
                   render={(moduleItem) => (
                     <AdminCard
                       key={moduleItem.id}
                       title={moduleItem.title}
                       meta={moduleItem.description || 'Aucune description'}
-                      tags={(moduleItem.trainers ?? []).map((item) => item.name)}
+                      tags={[
+                        moduleItem.year_level === 1 ? '1ère année' : moduleItem.year_level === 2 ? '2ème année' : null,
+                        moduleItem.option || null,
+                        ...(moduleItem.trainers ?? []).map((item) => item.name)
+                      ].filter(Boolean)}
                       onEdit={() => openModuleModal(moduleItem)}
                       onDelete={() => remove(`/modules/${moduleItem.id}`, 'Module supprimé.')}
                     />
@@ -836,6 +924,32 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
           <form className="space-y-4" onSubmit={submitModule}>
             <Input label="Titre" value={moduleForm.title} onChange={(value) => setModuleForm((previous) => ({ ...previous, title: value }))} />
             <Textarea label="Description" value={moduleForm.description} onChange={(value) => setModuleForm((previous) => ({ ...previous, description: value }))} />
+            
+            <Select
+              label="Année d'études"
+              value={moduleForm.year_level || ''}
+              onChange={(value) => setModuleForm((previous) => ({ ...previous, year_level: value, option: value === '2' ? previous.option : '' }))}
+              options={[
+                ['', 'Sélectionner l\'année'],
+                ['1', '1ère année'],
+                ['2', '2ème année'],
+              ]}
+            />
+
+            {moduleForm.year_level === '2' && (
+              <Select
+                label="Option (2ème année)"
+                value={moduleForm.option || ''}
+                onChange={(value) => setModuleForm((previous) => ({ ...previous, option: value }))}
+                options={[
+                  ['', 'Toutes les options (Tronc commun 2ème année)'],
+                  ['Full Stack', 'Full Stack'],
+                  ['Mobile', 'Mobile'],
+                  ['RV/RA', 'RV/RA'],
+                ]}
+              />
+            )}
+            
             <Submit saving={saving} label={editingModule ? 'Enregistrer module' : 'Créer module'} />
           </form>
         </Modal>
