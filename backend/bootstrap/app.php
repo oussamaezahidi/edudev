@@ -49,6 +49,23 @@ return Application::configure(basePath: dirname(__DIR__))
 
                 // Log detailed error context for 500 crashes
                 if ($status === 500) {
+                    try {
+                        $customLogPath = storage_path('logs/custom_errors.log');
+                        $errorData = sprintf(
+                            "[%s] Exception: %s\nMessage: %s\nURL: %s\nMethod: %s\nUser ID: %s\nTrace:\n%s\n----------------------------------------\n",
+                            date('Y-m-d H:i:s'),
+                            get_class($e),
+                            $e->getMessage(),
+                            $request->fullUrl(),
+                            $request->method(),
+                            $request->user()?->id ?? 'guest',
+                            $e->getTraceAsString()
+                        );
+                        file_put_contents($customLogPath, $errorData, FILE_APPEND);
+                    } catch (\Throwable $logEx) {
+                        // ignore
+                    }
+
                     \Illuminate\Support\Facades\Log::error('API Internal Server Error', [
                         'exception' => get_class($e),
                         'message' => $e->getMessage(),

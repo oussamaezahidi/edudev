@@ -26,9 +26,9 @@ Route::get('/diagnostics/logs', function (\Illuminate\Http\Request $request) {
     if ($request->query('key') !== 'supersecretlogs') {
         abort(403);
     }
-    $logPath = storage_path('logs/laravel.log');
+    $logPath = storage_path('logs/custom_errors.log');
     if (!file_exists($logPath)) {
-        return response('No log file found.');
+        return response('No custom errors log file found.');
     }
     $lines = file($logPath);
     $lastLines = array_slice($lines, -200);
