@@ -44,7 +44,7 @@ class PracticalWorkRequest extends FormRequest
                 Rule::exists('users', 'id')->where('role', 'trainer'),
             ],
             'title' => ['required', 'string', 'max:255'],
-            'instructions' => ['required', 'string'],
+            'instructions' => ['nullable', 'string'],
             'file' => [
                 $this->isMethod('post') ? 'required' : 'nullable',
                 'file',

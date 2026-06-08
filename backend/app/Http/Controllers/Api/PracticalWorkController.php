@@ -52,8 +52,8 @@ class PracticalWorkController extends Controller
             'course_id' => (int) $data['course_id'],
             'trainer_id' => $trainerId,
             'title' => $data['title'],
-            'instructions' => $data['instructions'],
-            'due_at' => $data['due_at'] ?? null,
+            'instructions' => $data['instructions'] ?? '',
+            'due_at' => !empty($data['due_at']) ? $data['due_at'] : null,
             ...$document,
         ]);
 
@@ -92,8 +92,8 @@ class PracticalWorkController extends Controller
             'course_id' => (int) $data['course_id'],
             'trainer_id' => $trainerId,
             'title' => $data['title'],
-            'instructions' => $data['instructions'],
-            'due_at' => $data['due_at'] ?? null,
+            'instructions' => $data['instructions'] ?? '',
+            'due_at' => !empty($data['due_at']) ? $data['due_at'] : null,
         ];
 
         if ($request->hasFile('file')) {

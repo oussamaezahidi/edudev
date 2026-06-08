@@ -380,8 +380,8 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
       const body = new FormData()
       body.append('course_id', practicalForm.course_id)
       body.append('title', practicalForm.title)
-      body.append('instructions', practicalForm.instructions)
-      if (practicalForm.due_at) body.append('due_at', practicalForm.due_at)
+      body.append('instructions', practicalForm.instructions || '')
+      body.append('due_at', practicalForm.due_at || '')
       if (practicalFile) body.append('file', practicalFile)
       if (editingPractical) body.append('_method', 'PUT')
 
