@@ -53,7 +53,7 @@ class AssessmentController extends Controller
             'trainer_id' => $trainerId,
             'title' => $data['title'],
             'format' => $data['format'],
-            'scheduled_at' => $data['scheduled_at'] ?? null,
+            'scheduled_at' => !empty($data['scheduled_at']) ? $data['scheduled_at'] : null,
             'duration_minutes' => (int) $data['duration_minutes'],
             'total_points' => (int) $data['total_points'],
             ...$document,
@@ -92,7 +92,7 @@ class AssessmentController extends Controller
             'trainer_id' => $trainerId,
             'title' => $data['title'],
             'format' => $data['format'],
-            'scheduled_at' => $data['scheduled_at'] ?? null,
+            'scheduled_at' => !empty($data['scheduled_at']) ? $data['scheduled_at'] : null,
             'duration_minutes' => (int) $data['duration_minutes'],
             'total_points' => (int) $data['total_points'],
         ];

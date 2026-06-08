@@ -417,7 +417,7 @@ export default function TrainerWorkspace({ user, api, onLogout, settings = null 
       if (assessmentForm.course_id) body.append('course_id', assessmentForm.course_id)
       body.append('title', assessmentForm.title)
       body.append('format', assessmentForm.format)
-      if (assessmentForm.scheduled_at) body.append('scheduled_at', assessmentForm.scheduled_at)
+      body.append('scheduled_at', assessmentForm.scheduled_at || '')
       body.append('duration_minutes', String(assessmentForm.duration_minutes))
       body.append('total_points', String(assessmentForm.total_points))
       if (assessmentFile) body.append('file', assessmentFile)
