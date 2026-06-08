@@ -254,6 +254,8 @@ export default function AdminWorkspace({ user, api, onLogout, settings: appSetti
     setModuleForm(nextModule ? {
       title: nextModule.title ?? '',
       description: nextModule.description ?? '',
+      year_level: nextModule.year_level !== null && nextModule.year_level !== undefined ? String(nextModule.year_level) : '',
+      option: nextModule.option ?? '',
     } : emptyModule)
     setModals((previous) => ({ ...previous, module: true }))
   }
